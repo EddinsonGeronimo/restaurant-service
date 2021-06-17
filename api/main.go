@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"regexp"
 
 	_ "github.com/dgraph-io/dgo"
 	_ "github.com/dgraph-io/dgo/protos/api"
@@ -64,9 +65,9 @@ func main() {
 		respProducts, err := http.Get(urlProducts)		
 		if err != nil { log.Fatal(err) }		
 		defer respProducts.Body.Close()		
-		bodyBuyers, err := ioutil.ReadAll(respProducts.Body)
+		_, err = ioutil.ReadAll(respProducts.Body)
 		if err != nil { log.Fatal(err) }
-		fmt.Println(productsData(string(bodyBuyers)))
+		//fmt.Println(productsData(string(bodyBuyers)))
 		
 		/* 
 		* get buyers from external endpoint
@@ -75,8 +76,9 @@ func main() {
 		respTrans, err := http.Get(urlTrans)		
 		if err != nil { log.Fatal(err) }		
 		defer respTrans.Body.Close()		
-		_, err = ioutil.ReadAll(respTrans.Body)
+		bodyTrans, err := ioutil.ReadAll(respTrans.Body)
 		if err != nil { log.Fatal(err) }
+		fmt.Println(transData(string(bodyTrans)))
 		/*
 		* open connection to local database
 		*
@@ -93,13 +95,10 @@ func main() {
 }
 
 func productsData(data string) []Product{
-
 	var pList []Product
-
 	line := strings.Split(data,"\n")
-	
-	for _, inl := range line {
 
+	for _, inl := range line {
 		inl2 := strings.Split(inl,`'`)
 
 		if len(inl2) == 3 {
@@ -109,4 +108,27 @@ func productsData(data string) []Product{
 		}
 	}
 	return pList
+}
+
+func transData(data string) []Transaction{
+	var pTrans []Transaction
+
+	// ip address regexp
+	regexpIp := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
+
+	line := strings.Split(data,`#`)
+
+	for i, inl := range line {
+		if i == 0 {continue}
+
+		pTrans = append(pTrans, 
+			Transaction{
+				ID: inl[:12], 
+				BuyerID: inl[13:21], 
+				IP: regexpIp.FindString(inl), 
+				Device: inl[22+len(regexpIp.FindString(inl)):strings.Index(inl,`(`)],
+				ProductIDs: strings.Split(inl[strings.Index(inl,`(`)+1:strings.Index(inl,`)`)], `,`)})		
+	}
+
+	return pTrans
 }
