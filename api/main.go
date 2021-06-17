@@ -9,6 +9,9 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	_"github.com/dgraph-io/dgo"
+	_"github.com/dgraph-io/dgo/protos/api"
+	_"google.golang.org/grpc"
 )
 
 func main() {
