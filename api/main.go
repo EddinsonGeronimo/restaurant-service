@@ -2,20 +2,21 @@ package main
 
 import (
 	_ "context"
-	_ "encoding/json"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
-	"regexp"
+	_"regexp"
+	_"bytes"
 
-	_ "github.com/dgraph-io/dgo"
-	_ "github.com/dgraph-io/dgo/protos/api"
+	"github.com/dgraph-io/dgo"
+	"github.com/dgraph-io/dgo/protos/api"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	_ "google.golang.org/grpc"
+	"google.golang.org/grpc"
 )
 
 type Buyer struct {
@@ -44,6 +45,7 @@ func main() {
 	*/
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	//loadSchema()
 
 	// load data to local database
 	r.Get("/",func(w http.ResponseWriter, r *http.Request) {
@@ -66,9 +68,7 @@ func main() {
 		if err != nil { log.Fatal(err) }		
 		defer respProducts.Body.Close()		
 		_, err = ioutil.ReadAll(respProducts.Body)
-		if err != nil { log.Fatal(err) }
-		//fmt.Println(productsData(string(bodyBuyers)))
-		
+		if err != nil { log.Fatal(err) }		
 		/* 
 		* get buyers from external endpoint
 		*/
@@ -76,19 +76,13 @@ func main() {
 		respTrans, err := http.Get(urlTrans)		
 		if err != nil { log.Fatal(err) }		
 		defer respTrans.Body.Close()		
-		bodyTrans, err := ioutil.ReadAll(respTrans.Body)
+		b, err := ioutil.ReadAll(respTrans.Body)
 		if err != nil { log.Fatal(err) }
-		fmt.Println(transData(string(bodyTrans)))
-		/*
-		* open connection to local database
-		*
-		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
-		if err != nil { log.Fatal(err) }		
-		defer conn.Close()		
-		_ = dgo.NewDgraphClient(api.NewDgraphClient(conn))
-		*
-		* 
-		*/
+
+		value, err := json.Marshal(transData(string(b)))
+		if err != nil { log.Fatal(err) }
+		
+		w.Write(value)
 	})
 
 	http.ListenAndServe(":3000", r)
@@ -113,22 +107,30 @@ func productsData(data string) []Product{
 func transData(data string) []Transaction{
 	var pTrans []Transaction
 
-	// ip address regexp
-	regexpIp := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
-
-	line := strings.Split(data,`#`)
+	line := strings.Split(data,"#")
 
 	for i, inl := range line {
 		if i == 0 {continue}
 
+		newL := strings.Split(inl,"\x00")
 		pTrans = append(pTrans, 
 			Transaction{
-				ID: inl[:12], 
-				BuyerID: inl[13:21], 
-				IP: regexpIp.FindString(inl), 
-				Device: inl[22+len(regexpIp.FindString(inl)):strings.Index(inl,`(`)],
-				ProductIDs: strings.Split(inl[strings.Index(inl,`(`)+1:strings.Index(inl,`)`)], `,`)})		
+				ID: newL[0], 
+				BuyerID: newL[1], 
+				IP: newL[2], 
+				Device: newL[3],
+				ProductIDs: strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ",")})
 	}
 
 	return pTrans
+}
+
+func loadSchema(){
+	/*
+	* load schema to local database
+	*/
+	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+	if err != nil { log.Fatal(err) }		
+	defer conn.Close()		
+	_ = dgo.NewDgraphClient(api.NewDgraphClient(conn))
 }
