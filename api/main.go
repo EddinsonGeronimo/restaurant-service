@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	_"context"
 	_"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,11 +12,11 @@ import (
 	_"regexp"
 	_"bytes"
 
-	"github.com/dgraph-io/dgo"
-	"github.com/dgraph-io/dgo/protos/api"
+	_"github.com/dgraph-io/dgo"
+	_"github.com/dgraph-io/dgo/protos/api"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"google.golang.org/grpc"
+	_"google.golang.org/grpc"
 )
 
 type Buyer struct {
@@ -184,11 +184,11 @@ func transData(data string) []Transaction{
 
 	return pTrans
 }
-
+/*
 func loadSchema(){
-	/*
-	* load schema to local database
-	*/
+	
+	//load schema to local database
+	
 	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 	if err != nil { log.Fatal(err) }		
 	defer conn.Close()		
@@ -208,4 +208,4 @@ func loadSchema(){
 	if err := dgraphClient.Alter(context.Background(), op); err != nil {
 		log.Fatal(err)
 	}
-}
+}*/
