@@ -1,8 +1,8 @@
 package main
 
 import (
-	_"context"
-	_"encoding/json"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -12,11 +12,11 @@ import (
 	_"regexp"
 	_"bytes"
 
-	_"github.com/dgraph-io/dgo"
-	_"github.com/dgraph-io/dgo/protos/api"
+	"github.com/dgraph-io/dgo"
+	"github.com/dgraph-io/dgo/protos/api"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	_"google.golang.org/grpc"
+	"google.golang.org/grpc"
 )
 
 type Buyer struct {
@@ -76,23 +76,13 @@ func main() {
 		respTrans, err := http.Get(urlTrans)		
 		if err != nil { log.Fatal(err) }		
 		defer respTrans.Body.Close()		
-		_, err = ioutil.ReadAll(respTrans.Body)
+		b, err := ioutil.ReadAll(respTrans.Body)
 		if err != nil { log.Fatal(err) }
 
-		//queryvar := `queryTask { id }`
-
-		localdburl := "http://localhost:8080/graphql?query={ queryTask { id user { username } } }&variables={}&"
-
-		resp, err := http.Get(localdburl)
+		dat, err := json.Marshal(transData(string(b)))
 		if err != nil { log.Fatal(err) }
-		defer resp.Body.Close()		
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		bodyString := string(bodyBytes)
-		w.Write([]byte(bodyString))
 
-		//_, err = json.Marshal(transData(string(b)))
-		//if err != nil { log.Fatal(err) }
-
+		w.Write(dat)
 		// connection
 		/*conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 		if err != nil { log.Fatal(err) }		
@@ -184,10 +174,8 @@ func transData(data string) []Transaction{
 
 	return pTrans
 }
-/*
+
 func loadSchema(){
-	
-	//load schema to local database
 	
 	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 	if err != nil { log.Fatal(err) }		
@@ -208,4 +196,4 @@ func loadSchema(){
 	if err := dgraphClient.Alter(context.Background(), op); err != nil {
 		log.Fatal(err)
 	}
-}*/
+}
