@@ -1,8 +1,8 @@
 package main
 
 import (
-	_ "context"
-	"encoding/json"
+	"context"
+	_"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -20,7 +20,7 @@ import (
 )
 
 type Buyer struct {
-	ID string `json:"id,omitempty"`
+	BuyerId string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 	Age string `json:"age,omitempty"`
 }
@@ -76,16 +76,76 @@ func main() {
 		respTrans, err := http.Get(urlTrans)		
 		if err != nil { log.Fatal(err) }		
 		defer respTrans.Body.Close()		
-		b, err := ioutil.ReadAll(respTrans.Body)
+		_, err = ioutil.ReadAll(respTrans.Body)
 		if err != nil { log.Fatal(err) }
 
-		value, err := json.Marshal(transData(string(b)))
+		//queryvar := `queryTask { id }`
+
+		localdburl := "http://localhost:8080/graphql?query={ queryTask { id user { username } } }&variables={}&"
+
+		resp, err := http.Get(localdburl)
 		if err != nil { log.Fatal(err) }
-		
-		w.Write(value)
+		defer resp.Body.Close()		
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyString := string(bodyBytes)
+		w.Write([]byte(bodyString))
+
+		//_, err = json.Marshal(transData(string(b)))
+		//if err != nil { log.Fatal(err) }
+
+		// connection
+		/*conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+		if err != nil { log.Fatal(err) }		
+		defer conn.Close()		
+		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))*/
+
+		/*
+		* mutation
+		*/
+		/*someone,err := json.Marshal(Buyer{BuyerId: "d4f45f", Name: "julio", Age: "10"})
+		mu := &api.Mutation{ CommitNow: true, SetJson: someone}
+
+		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
+		if err != nil { log.Fatal(err) }*/
+
+		//jsonBuyers, err := json.Marshal(string(buyers))
+		//if err != nil { log.Fatal(err) }
+
+		/*
+		* query
+		*/
+		/*q := `query all($a: string) {
+			all(func: eq(name, $a)) {
+			  name
+			}
+		  }`
+		q := `{
+			one(func: eq(buyerId, "d4f45f")) {
+				buyerId
+				name
+				age
+			}
+		}`*/
+
+		//resp, err := dgraphClient.NewReadOnlyTxn().QueryWithVars(context.Background(), q, map[string]string{"$a": "Simons"})
+		//resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), q)
+		//if err != nil { log.Fatal(err) }
+
+		/*var decode struct {
+			All []struct {
+				name string
+			}
+		}
+
+		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
+			log.Fatal(err)
+		}*/
+
+		//fmt.Println(string(resp.GetJson()))
+		//w.Write(resp.GetJson())
 	})
 
-	http.ListenAndServe(":3000", r)
+	http.ListenAndServe(":5000", r)
 }
 
 func productsData(data string) []Product{
@@ -132,5 +192,20 @@ func loadSchema(){
 	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 	if err != nil { log.Fatal(err) }		
 	defer conn.Close()		
-	_ = dgo.NewDgraphClient(api.NewDgraphClient(conn))
+	dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+
+	op := &api.Operation{}
+	op.Schema = `
+	buyerId: string @index(exact) .
+	name: string @index(exact) .
+	age: string .
+	type Buyer {
+		buyerId: string
+		name: string
+		age: string
+	}`
+	
+	if err := dgraphClient.Alter(context.Background(), op); err != nil {
+		log.Fatal(err)
+	}
 }
