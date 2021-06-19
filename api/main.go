@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	_"regexp"
-	_"bytes"
 	"strconv"
 
 	"github.com/dgraph-io/dgo"
@@ -53,9 +51,7 @@ type Transaction struct {
 }
 
 func main() {
-	/*
-	* chi router
-	*/
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	//loadSchema()
@@ -74,7 +70,7 @@ func main() {
 		transData  := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date", currentTime))
 
 		/*
-		* create connection to dgraph
+		* connection to dgraph
 		*/
 		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 		if err != nil { log.Fatal(err) }		
@@ -156,7 +152,41 @@ func main() {
 		w.Write([]byte("done"))
 	})
 
-	http.ListenAndServe(":5000", r)
+	// endpoint: return buyers who have transactions
+	r.Get("/buyers",func(w http.ResponseWriter, r *http.Request){
+		/*
+		* connection to dgraph
+		*/
+		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+		if err != nil { log.Fatal(err) }		
+		defer conn.Close()		
+		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+
+		const query = `{ q (func: type(Buyer)) { id name age transactions: ~buyer { id } } }`
+
+		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query)
+		if err != nil { log.Fatal(err) }
+
+		var decode struct { 
+			Q []struct { 
+				Id string `json:"id"`
+				Name string `json:"name"`
+				Age string `json:"age"`
+				transactions []struct{ Id string `json:"id"`}
+			} 
+		}
+		
+		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
+			log.Fatal(err)
+		}
+		
+		data, err := json.Marshal(&decode)
+		if err != nil { log.Fatal(err) }
+
+		w.Write(data)
+	})
+	
+	http.ListenAndServe(":3000", r)
 }
 
 func getData(url string, currentTime string) []byte { 
