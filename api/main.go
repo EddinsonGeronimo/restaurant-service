@@ -35,17 +35,21 @@ type DgBuyer struct {
 }
 
 type Product struct {
-	ID string `json:"Id,omitempty"`
+	Uid string `json:"uid,omitempty"`
+	Id string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 	Price string `json:"price,omitempty"`
+	DType []string `json:"dgraph.type,omitempty"`
 }
 
 type Transaction struct {
-	ID string `json:"Id,omitempty"`
-	BuyerID string `json:"buyer,omitempty"`
-	IP string `json:"ip,omitempty"`
+	Uid string `json:"uid,omitempty"`
+	Id string `json:"id,omitempty"`
+	Buyer string `json:"buyer,omitempty"`
+	Ip string `json:"ip,omitempty"`
 	Device string `json:"device,omitempty"`
-	ProductIDs []string `json:"products,omitempty"`
+	Products []string `json:"products,omitempty"`
+	DType []string `json:"dgraph.type,omitempty"`
 }
 
 func main() {
@@ -56,37 +60,14 @@ func main() {
 	r.Use(middleware.Logger)
 	//loadSchema()
 
-	// load data to local database
-	r.Get("/",func(w http.ResponseWriter, r *http.Request) {
+	// endpoint: load data to dgraph
+	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
 		
 		currentTime := time.Now().Format("2006-01-02")
-		/* 
-		* get buyers from external endpoint
-		*/
-		urlBuyers := fmt.Sprintf("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/buyers?date=%s", currentTime)
-		respBuyers, err := http.Get(urlBuyers)		
-		if err != nil { log.Fatal(err) }		
-		defer respBuyers.Body.Close()		
-		buyers, err := ioutil.ReadAll(respBuyers.Body)
-		if err != nil { log.Fatal(err) }
-		/* 
-		* get products from external endpoint
-		*/
-		urlProducts := fmt.Sprintf("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/products?date=%s", currentTime)
-		respProducts, err := http.Get(urlProducts)		
-		if err != nil { log.Fatal(err) }		
-		defer respProducts.Body.Close()		
-		_, err = ioutil.ReadAll(respProducts.Body)
-		if err != nil { log.Fatal(err) }		
-		/* 
-		* get buyers from external endpoint
-		*/
-		urlTrans := fmt.Sprintf("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date=%s", currentTime)
-		respTrans, err := http.Get(urlTrans)		
-		if err != nil { log.Fatal(err) }		
-		defer respTrans.Body.Close()		
-		_, err = ioutil.ReadAll(respTrans.Body)
-		if err != nil { log.Fatal(err) }
+
+		buyers := getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/buyers?date", currentTime)
+		prodData := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/products?date", currentTime))
+		transData := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date", currentTime))
 
 		/*
 		* create connection to dgraph
@@ -97,7 +78,7 @@ func main() {
 		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
 
 		/*
-		* mutation
+		* encode buyers
 		*/
 		var inBuyers []IncomingBuyer
 		var outBuyers []DgBuyer
@@ -106,14 +87,52 @@ func main() {
 		for _, v := range inBuyers {
 			outBuyers = append(outBuyers, DgBuyer{Uid: `_:`+v.Id, Id: v.Id, Name: v.Name, Age: strconv.Itoa(v.Age), DType: []string{"Buyer"} })
 		}
-		
-		dgBuyers,err := json.Marshal(outBuyers)
+		/*
+		* process products
+		*/
+		var prodList []Product
+		pLine := strings.Split(prodData,"\n")
+
+		for _, inl := range pLine {
+			inl2 := strings.Split(inl,`'`)
+
+			if len(inl2) == 3 {
+				prodList = append(prodList, Product{Uid: `_:`+inl2[0], Id: inl2[0], Name: inl2[1], Price: inl2[2], DType: []string{"Product"} })
+			}else if len(inl2) == 4 {
+				prodList = append(prodList, Product{Uid: `_:`+inl2[0], Id: inl2[0], Name: inl2[1]+inl2[2], Price: inl2[3], DType: []string{"Product"} })
+			}
+		}
+		/*
+		* process transactions
+		*/
+		var pTrans []Transaction
+		tLine := strings.Split(transData,"#")
+
+		for i, inl := range tLine {
+			if i == 0 {continue}
+
+			newL := strings.Split(inl,"\x00")
+
+			// get buyer
+
+
+			pTrans = append(pTrans, Transaction{
+				Uid: `_:`+newL[0],
+				Id: newL[0], 
+				Buyer: newL[1], 
+				Ip: newL[2], 
+				Device: newL[3],
+				Products: strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ","),
+				DType: []string{"Transaction"} })
+		}
+
+		/*dgBuyers,err := json.Marshal(outBuyers)
 		if err != nil { log.Fatal(err) }
 
 		mu := &api.Mutation{ CommitNow: true, SetJson: dgBuyers}
 
 		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
-		if err != nil { log.Fatal(err) }
+		if err != nil { log.Fatal(err) }*/
 
 		w.Write([]byte("done"))
 	})
@@ -121,45 +140,14 @@ func main() {
 	http.ListenAndServe(":5000", r)
 }
 
-func getData(){
-	
-}
-
-func productsData(data string) []Product{
-	var pList []Product
-	line := strings.Split(data,"\n")
-
-	for _, inl := range line {
-		inl2 := strings.Split(inl,`'`)
-
-		if len(inl2) == 3 {
-			pList = append(pList, Product{ID: inl2[0], Name: inl2[1], Price: inl2[2]})
-		}else if len(inl2) == 4 {
-			pList = append(pList, Product{ID: inl2[0], Name: inl2[1]+inl2[2], Price: inl2[3]})
-		}
-	}
-	return pList
-}
-
-func transData(data string) []Transaction{
-	var pTrans []Transaction
-
-	line := strings.Split(data,"#")
-
-	for i, inl := range line {
-		if i == 0 {continue}
-
-		newL := strings.Split(inl,"\x00")
-		pTrans = append(pTrans, 
-			Transaction{
-				ID: newL[0], 
-				BuyerID: newL[1], 
-				IP: newL[2], 
-				Device: newL[3],
-				ProductIDs: strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ",")})
-	}
-
-	return pTrans
+func getData(url string, currentTime string) []byte { 
+	querystr := fmt.Sprintf("%s=%s", url, currentTime)
+	resp, err := http.Get(querystr)		
+	if err != nil { log.Fatal(err) }		
+	defer resp.Body.Close()		
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil { log.Fatal(err) }
+	return data
 }
 
 func loadSchema(){
