@@ -63,7 +63,11 @@ func main() {
 	// endpoint: load data to dgraph
 	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
 		
-		currentTime := time.Now().Format("2006-01-02")
+		currentTime := chi.URLParam(r, "date")
+
+		if len(currentTime) == 0 {
+			currentTime = time.Now().Format("2006-01-02")
+		}
 
 		buyers := getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/buyers?date", currentTime)
 		prodData := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/products?date", currentTime))
