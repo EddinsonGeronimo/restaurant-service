@@ -172,17 +172,33 @@ func main() {
 				Id string `json:"id"`
 				Name string `json:"name"`
 				Age string `json:"age"`
-				transactions []struct{ Id string `json:"id"`}
+				Transactions []struct{ Id string `json:"id"`}
 			} 
 		}
 		
 		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
 			log.Fatal(err)
 		}
+
+		type Buyer struct{
+			Id string `json:"id"`
+			Name string `json:"name"`
+			Age string `json:"age"`
+		}
+
+		var buyersWithTrans []Buyer
+
+		for _,v := range decode.Q{
+			if len(v.Transactions) > 0 {
+				buyersWithTrans = append(buyersWithTrans, Buyer{Id: v.Id, Name: v.Name, Age: v.Age})
+			}
+		}
 		
-		data, err := json.Marshal(&decode)
+		data, err := json.Marshal(&buyersWithTrans)
+
 		if err != nil { log.Fatal(err) }
 
+		// if 'data' is empty than 'data' is null
 		w.Write(data)
 	})
 	
