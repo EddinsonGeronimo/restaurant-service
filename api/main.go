@@ -59,7 +59,7 @@ func main() {
 	// endpoint: load data to dgraph
 	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
 		
-		currentTime := chi.URLParam(r, "date")
+		currentTime := r.URL.Query().Get("date")
 
 		if len(currentTime) == 0 {
 			currentTime = time.Now().Format("2006-01-02")
@@ -202,6 +202,68 @@ func main() {
 		w.Write(data)
 	})
 	
+	r.Get("/buyer",func(w http.ResponseWriter, r *http.Request){
+		
+		buyerId := r.URL.Query().Get("id")
+
+		/*
+		* connection to dgraph
+		*/
+		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+		if err != nil { log.Fatal(err) }		
+		defer conn.Close()		
+		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+
+		const query = `{ q (func: type(Buyer)) { id name age transactions: ~buyer { id ip device products { name price } } } }`
+
+		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query)
+		if err != nil { log.Fatal(err) }
+
+		var decode struct { 
+			Q []struct { 
+				Id string `json:"id"`
+				Name string `json:"name"`
+				Age string `json:"age"`
+				Transactions []struct{ 
+					Id string `json:"id"`
+					Ip string `json:"ip"`
+					Device string `json:"device"`
+					Products []struct{
+						Name string `json:"name"`
+						Price float64 `json:"price"`
+					}
+				}
+			} 
+		}
+
+		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
+			log.Fatal(err)
+		}
+
+		var buyerTrans []struct{
+			Id string `json:"id"`
+			Ip string `json:"ip"`
+			Device string `json:"device"`
+			Products []struct{
+				Name string `json:"name"`
+				Price float64 `json:"price"`
+				}
+		}
+
+		for _,v := range decode.Q {
+			if buyerId == v.Id {
+				buyerTrans = append(buyerTrans, v.Transactions...)
+			}
+		}
+
+		data, err := json.Marshal(&buyerTrans)
+
+		if err != nil { log.Fatal(err) }
+
+		//if 'data' is empty than 'data' is null
+		w.Write(data)
+	})
+
 	http.ListenAndServe(":3000", r)
 }
 
