@@ -11,6 +11,7 @@ import (
 	"time"
 	_"regexp"
 	_"bytes"
+	"strconv"
 
 	"github.com/dgraph-io/dgo"
 	"github.com/dgraph-io/dgo/protos/api"
@@ -19,20 +20,28 @@ import (
 	"google.golang.org/grpc"
 )
 
-type Buyer struct {
-	BuyerId string `json:"id,omitempty"`
+type IncomingBuyer struct {
+	Id string `json:"id"`
+	Name string `json:"name"`
+	Age int `json:"age"`
+}
+
+type DgBuyer struct {
+	Uid string `json:"uid,omitempty"`
+	Id string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 	Age string `json:"age,omitempty"`
+	DType []string `json:"dgraph.type,omitempty"`
 }
 
 type Product struct {
-	ID string `json:"id,omitempty"`
+	ID string `json:"Id,omitempty"`
 	Name string `json:"name,omitempty"`
 	Price string `json:"price,omitempty"`
 }
 
 type Transaction struct {
-	ID string `json:"id,omitempty"`
+	ID string `json:"Id,omitempty"`
 	BuyerID string `json:"buyer,omitempty"`
 	IP string `json:"ip,omitempty"`
 	Device string `json:"device,omitempty"`
@@ -58,7 +67,7 @@ func main() {
 		respBuyers, err := http.Get(urlBuyers)		
 		if err != nil { log.Fatal(err) }		
 		defer respBuyers.Body.Close()		
-		_, err = ioutil.ReadAll(respBuyers.Body)
+		buyers, err := ioutil.ReadAll(respBuyers.Body)
 		if err != nil { log.Fatal(err) }
 		/* 
 		* get products from external endpoint
@@ -76,66 +85,44 @@ func main() {
 		respTrans, err := http.Get(urlTrans)		
 		if err != nil { log.Fatal(err) }		
 		defer respTrans.Body.Close()		
-		b, err := ioutil.ReadAll(respTrans.Body)
+		_, err = ioutil.ReadAll(respTrans.Body)
 		if err != nil { log.Fatal(err) }
 
-		dat, err := json.Marshal(transData(string(b)))
-		if err != nil { log.Fatal(err) }
-
-		w.Write(dat)
-		// connection
-		/*conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+		/*
+		* create connection to dgraph
+		*/
+		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 		if err != nil { log.Fatal(err) }		
 		defer conn.Close()		
-		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))*/
+		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
 
 		/*
 		* mutation
 		*/
-		/*someone,err := json.Marshal(Buyer{BuyerId: "d4f45f", Name: "julio", Age: "10"})
-		mu := &api.Mutation{ CommitNow: true, SetJson: someone}
+		var inBuyers []IncomingBuyer
+		var outBuyers []DgBuyer
+		if err := json.Unmarshal(buyers, &inBuyers); err != nil { log.Fatal(err) }
+		
+		for _, v := range inBuyers {
+			outBuyers = append(outBuyers, DgBuyer{Uid: `_:`+v.Id, Id: v.Id, Name: v.Name, Age: strconv.Itoa(v.Age), DType: []string{"Buyer"} })
+		}
+		
+		dgBuyers,err := json.Marshal(outBuyers)
+		if err != nil { log.Fatal(err) }
+
+		mu := &api.Mutation{ CommitNow: true, SetJson: dgBuyers}
 
 		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
-		if err != nil { log.Fatal(err) }*/
+		if err != nil { log.Fatal(err) }
 
-		//jsonBuyers, err := json.Marshal(string(buyers))
-		//if err != nil { log.Fatal(err) }
-
-		/*
-		* query
-		*/
-		/*q := `query all($a: string) {
-			all(func: eq(name, $a)) {
-			  name
-			}
-		  }`
-		q := `{
-			one(func: eq(buyerId, "d4f45f")) {
-				buyerId
-				name
-				age
-			}
-		}`*/
-
-		//resp, err := dgraphClient.NewReadOnlyTxn().QueryWithVars(context.Background(), q, map[string]string{"$a": "Simons"})
-		//resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), q)
-		//if err != nil { log.Fatal(err) }
-
-		/*var decode struct {
-			All []struct {
-				name string
-			}
-		}
-
-		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
-			log.Fatal(err)
-		}*/
-
-		//fmt.Println(string(resp.GetJson()))
-		//w.Write(resp.GetJson())
+		w.Write([]byte("done"))
 	})
 
 	http.ListenAndServe(":5000", r)
+}
+
+func getData(){
+	
 }
 
 func productsData(data string) []Product{
