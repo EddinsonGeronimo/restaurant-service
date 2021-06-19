@@ -45,10 +45,10 @@ type Product struct {
 type Transaction struct {
 	Uid string `json:"uid,omitempty"`
 	Id string `json:"id,omitempty"`
-	Buyer string `json:"buyer,omitempty"`
+	Buyer DgBuyer `json:"buyer,omitempty"`
 	Ip string `json:"ip,omitempty"`
 	Device string `json:"device,omitempty"`
-	Products []string `json:"products,omitempty"`
+	Products []Product `json:"products,omitempty"`
 	DType []string `json:"dgraph.type,omitempty"`
 }
 
@@ -67,7 +67,7 @@ func main() {
 
 		buyers := getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/buyers?date", currentTime)
 		prodData := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/products?date", currentTime))
-		transData := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date", currentTime))
+		transData  := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date", currentTime))
 
 		/*
 		* create connection to dgraph
@@ -102,6 +102,7 @@ func main() {
 				prodList = append(prodList, Product{Uid: `_:`+inl2[0], Id: inl2[0], Name: inl2[1]+inl2[2], Price: inl2[3], DType: []string{"Product"} })
 			}
 		}
+	
 		/*
 		* process transactions
 		*/
@@ -112,27 +113,41 @@ func main() {
 			if i == 0 {continue}
 
 			newL := strings.Split(inl,"\x00")
+			var dgbuyer DgBuyer
+			var dgprodList []Product
+			transProdIds := strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ",")
 
 			// get buyer
+			for _,v := range outBuyers{
+				if v.Id == newL[1] {dgbuyer = v}
+			}
 
+			// get products
+			for _,v := range transProdIds {
+				for _,v1 := range prodList {
+					if v1.Id == v {
+						dgprodList = append(dgprodList, v1)
+					}
+				}
+			}
 
 			pTrans = append(pTrans, Transaction{
 				Uid: `_:`+newL[0],
 				Id: newL[0], 
-				Buyer: newL[1], 
+				Buyer: dgbuyer, 
 				Ip: newL[2], 
 				Device: newL[3],
-				Products: strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ","),
+				Products: dgprodList,
 				DType: []string{"Transaction"} })
 		}
 
-		/*dgBuyers,err := json.Marshal(outBuyers)
+		jsonData,err := json.Marshal(pTrans)
 		if err != nil { log.Fatal(err) }
 
-		mu := &api.Mutation{ CommitNow: true, SetJson: dgBuyers}
+		mu := &api.Mutation{ CommitNow: true, SetJson: jsonData}
 
 		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
-		if err != nil { log.Fatal(err) }*/
+		if err != nil { log.Fatal(err) }
 
 		w.Write([]byte("done"))
 	})
