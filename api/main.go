@@ -219,6 +219,7 @@ func main() {
 		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query)
 		if err != nil { log.Fatal(err) }
 
+		// store all buyers and their transactions
 		var decode struct { 
 			Q []struct { 
 				Id string `json:"id"`
@@ -240,7 +241,8 @@ func main() {
 			log.Fatal(err)
 		}
 
-		var buyerTrans []struct{
+		// store all transactions of buyerId
+		type BuyerTrans []struct{
 			Id string `json:"id"`
 			Ip string `json:"ip"`
 			Device string `json:"device"`
@@ -250,13 +252,44 @@ func main() {
 				}
 		}
 
+		var buyerTrans BuyerTrans
+
 		for _,v := range decode.Q {
 			if buyerId == v.Id {
 				buyerTrans = append(buyerTrans, v.Transactions...)
 			}
 		}
 
-		data, err := json.Marshal(&buyerTrans)
+		type Buyer struct{
+			Id string `json:"id"`
+			Name string `json:"name"`
+			Age string `json:"age"`
+		}
+
+		// store all buyers with same ips as buyerId
+		var hasSameIp []Buyer
+
+		for _,v := range buyerTrans {
+			for _,v1 := range decode.Q {
+				for _,v3 := range v1.Transactions{
+					if v.Ip == v3.Ip {
+						hasSameIp = append(hasSameIp, Buyer{Id: v1.Id, Name: v1.Name, Age: v1.Age})
+					}
+				}
+			}
+		}
+
+		type AllData struct {
+			BuyerTransactions []BuyerTrans `json:"buyertransactions"`
+			HasSameIp []Buyer `json:"hassameip"`
+		}
+
+		var allData AllData
+
+		allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
+		allData.HasSameIp = append(allData.HasSameIp, hasSameIp...)
+
+		data, err := json.Marshal(&allData)
 
 		if err != nil { log.Fatal(err) }
 
