@@ -330,7 +330,8 @@ func main() {
 
 		allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
 		allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
-		//allData.Nproducts = append(allData.Nproducts, decode.Qproducts)
+
+		// filter products linked to more than 300 transactions  
 		for _,v := range decode.Qproducts {
 			if v.Ntrans > 300 {
 				allData.Rproducts = append(allData.Rproducts, 
@@ -349,7 +350,6 @@ func main() {
 
 		//if 'data' is empty than 'data' is null
 		w.Write(data)
-		fmt.Println(decode.Qproducts)
 	})
 
 	http.ListenAndServe(":3000", r)
