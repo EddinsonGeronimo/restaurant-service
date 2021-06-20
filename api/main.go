@@ -202,6 +202,7 @@ func main() {
 		w.Write(data)
 	})
 	
+	// endpoint: return transactions, buyers with same ip and recommended products of buyerId 
 	r.Get("/buyer",func(w http.ResponseWriter, r *http.Request){
 		
 		buyerId := r.URL.Query().Get("id")
@@ -279,6 +280,21 @@ func main() {
 			}
 		}
 
+		/*
+		* remove duplicate from 'hasSameIp'
+		*/
+		var hasSameIpWithNoRep []Buyer
+		list := []string{}
+
+		for _,v := range hasSameIp{
+			if contains(list, v.Id) {
+				continue
+			}
+			list = append(list, v.Id)
+			hasSameIpWithNoRep = append(hasSameIpWithNoRep, v)
+		}
+
+		// store transactions and buyers with same ip as buyerId
 		type AllData struct {
 			BuyerTransactions []BuyerTrans `json:"buyertransactions"`
 			HasSameIp []Buyer `json:"hassameip"`
@@ -287,7 +303,7 @@ func main() {
 		var allData AllData
 
 		allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
-		allData.HasSameIp = append(allData.HasSameIp, hasSameIp...)
+		allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
 
 		data, err := json.Marshal(&allData)
 
@@ -298,6 +314,16 @@ func main() {
 	})
 
 	http.ListenAndServe(":3000", r)
+}
+
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
 }
 
 func getData(url string, currentTime string) []byte { 
