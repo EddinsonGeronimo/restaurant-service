@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"strconv"
+	"os"
 
 	"github.com/dgraph-io/dgo"
 	"github.com/dgraph-io/dgo/protos/api"
@@ -54,7 +55,10 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
-	//loadSchema()
+
+	if len(os.Args) > 1 && os.Args[1] == "--load-schema" {
+		loadSchema()	
+	}
 
 	// endpoint: load data to dgraph
 	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +206,7 @@ func main() {
 		w.Write(data)
 	})
 	
-	// endpoint: return transactions, buyers with same ip and recommended products of buyerId 
+	// endpoint: return transactions and buyers with same ip as buyerId, also recommended products 
 	r.Get("/buyer",func(w http.ResponseWriter, r *http.Request){
 		
 		buyerId := r.URL.Query().Get("id")
@@ -352,7 +356,7 @@ func main() {
 		w.Write(data)
 	})
 
-	http.ListenAndServe(":3000", r)
+	http.ListenAndServe(":5000", r)
 }
 
 func contains(s []string, str string) bool {
@@ -384,13 +388,32 @@ func loadSchema(){
 
 	op := &api.Operation{}
 	op.Schema = `
-	buyerId: string @index(exact) .
-	name: string @index(exact) .
-	age: string .
-	type Buyer {
-		buyerId: string
-		name: string
-		age: string
+	<Id>: string @index(exact) .
+	<age>: string .
+	<buyer>: uid @reverse .
+	<buyers>: [uid] .
+	<device>: string .
+	<id>: string .
+	<ip>: string .
+	<name>: string .
+	<price>: float .
+	<products>: [uid] @count @reverse .
+	type <Buyer> {
+		Id
+		name
+		age
+	}
+	type <Product> {
+		Id
+		name
+		price
+	}
+	type <Transaction> {
+		Id
+		buyer
+		ip
+		device
+		products
 	}`
 	
 	if err := dgraphClient.Alter(context.Background(), op); err != nil {
