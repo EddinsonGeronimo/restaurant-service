@@ -215,7 +215,24 @@ func main() {
 		defer conn.Close()		
 		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
 
-		const query = `{ q (func: type(Buyer)) { id name age transactions: ~buyer { id ip device products { name price } } } }`
+		const query = `{ 
+			q (func: type(Buyer)) {
+				id 
+				name 
+				age 
+				transactions: ~buyer { 
+					id 
+					ip
+					device 
+					products { name price } 
+				  } 
+			  }
+			qProducts (func: type(Product)){
+			  id 
+			  name 
+			  ntrans: count(~products)
+			}
+		  }`
 
 		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query)
 		if err != nil { log.Fatal(err) }
@@ -235,7 +252,12 @@ func main() {
 						Price float64 `json:"price"`
 					}
 				}
-			} 
+			}
+			Qproducts []struct {
+				Id string `json:"id"`
+				Name string `json:"name"`
+				Ntrans int `json:"ntrans"`
+			}
 		}
 
 		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
@@ -250,7 +272,7 @@ func main() {
 			Products []struct{
 				Name string `json:"name"`
 				Price float64 `json:"price"`
-				}
+			}
 		}
 
 		var buyerTrans BuyerTrans
@@ -261,7 +283,7 @@ func main() {
 			}
 		}
 
-		type Buyer struct{
+		type Buyer struct {
 			Id string `json:"id"`
 			Name string `json:"name"`
 			Age string `json:"age"`
@@ -298,12 +320,28 @@ func main() {
 		type AllData struct {
 			BuyerTransactions []BuyerTrans `json:"buyertransactions"`
 			HasSameIp []Buyer `json:"hassameip"`
+			Rproducts []struct { 
+				Id string `json:"id"` 
+				Name string `json:"name"`
+			}
 		}
 
 		var allData AllData
 
 		allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
 		allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
+		//allData.Nproducts = append(allData.Nproducts, decode.Qproducts)
+		for _,v := range decode.Qproducts {
+			if v.Ntrans > 300 {
+				allData.Rproducts = append(allData.Rproducts, 
+					struct{ 
+						Id string `json:"id"` 
+						Name string `json:"name"`}{
+							Id: v.Id, 
+							Name: v.Name,
+						})
+			}
+		}
 
 		data, err := json.Marshal(&allData)
 
@@ -311,6 +349,7 @@ func main() {
 
 		//if 'data' is empty than 'data' is null
 		w.Write(data)
+		fmt.Println(decode.Qproducts)
 	})
 
 	http.ListenAndServe(":3000", r)
