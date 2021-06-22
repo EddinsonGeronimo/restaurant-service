@@ -1,6 +1,7 @@
 module.exports = {
     projects: [{ 
         root: './web-client',
-        package: './package.json' 
+        package: './package.json',
+        jsconfig: './jsconfig.json'
     }]
 }
