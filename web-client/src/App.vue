@@ -2,7 +2,6 @@
   <v-app>
     <v-tabs centered>
       <v-tab to="SyncView">Sync</v-tab>
-      <v-tab>Buyers</v-tab>
     </v-tabs>
     <v-main>
       <router-view/>
