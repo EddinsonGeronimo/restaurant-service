@@ -18,6 +18,7 @@
     data: () => ({
         picker: new Date().toISOString().substr(0, 10),
     }),
+    
     methods: {
       click: async function(date, event){
         try {

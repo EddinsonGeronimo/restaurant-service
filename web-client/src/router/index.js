@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import SyncView from '../views/SyncView.vue'
+import BuyersView from '../views/BuyersView.vue'
 import axios from 'axios'
 import VueAxios from 'vue-axios'
 
@@ -13,14 +14,12 @@ const routes = [
     name: 'SyncView',
     component: SyncView
   },
-  //{
-    //path: '/about',
-    //name: 'About',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    //component: () => import(/* webpackChunkName: "about" */ '../views/About.vue')
-  //}
+  {
+    path: '/buyers',
+    name: 'BuyersView',
+
+    component: BuyersView//() => import(/* webpackChunkName: "buyersview" */ '../views/BuyersView.vue')
+  }
 ]
 
 const router = new VueRouter({
