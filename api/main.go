@@ -12,11 +12,12 @@ import (
 	"strconv"
 	"os"
 
-	"github.com/dgraph-io/dgo"
-	"github.com/dgraph-io/dgo/protos/api"
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/dgraph-io/dgo/v210"
+	"github.com/dgraph-io/dgo/v210/protos/api"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"google.golang.org/grpc"
+	"github.com/go-chi/cors"
 )
 
 type IncomingBuyer struct {
@@ -55,6 +56,16 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	r.Use(cors.Handler(cors.Options{
+		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		// AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "Access-Control-Allow-Origin"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	  }))
 
 	if len(os.Args) > 1 && os.Args[1] == "--load-schema" {
 		loadSchema()	
@@ -153,7 +164,7 @@ func main() {
 		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
 		if err != nil { log.Fatal(err) }
 
-		w.Write([]byte("done"))
+		w.Write([]byte(`{"task": "done"}`))
 	})
 
 	// endpoint: return buyers who have transactions
@@ -206,7 +217,7 @@ func main() {
 		w.Write(data)
 	})
 	
-	// endpoint: return transactions and buyers with same ip as buyerId, also recommended products 
+	// endpoint: return transactions of buyerId and buyers with same ip , also recommended products 
 	r.Get("/buyer",func(w http.ResponseWriter, r *http.Request){
 		
 		buyerId := r.URL.Query().Get("id")
@@ -356,7 +367,7 @@ func main() {
 		w.Write(data)
 	})
 
-	http.ListenAndServe(":5000", r)
+	http.ListenAndServe(":4000", r)
 }
 
 func contains(s []string, str string) bool {
