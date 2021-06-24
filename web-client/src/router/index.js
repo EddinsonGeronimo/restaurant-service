@@ -1,7 +1,6 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import SyncView from '../views/SyncView.vue'
-import BuyersView from '../views/BuyersView.vue'
 import axios from 'axios'
 import VueAxios from 'vue-axios'
 
@@ -18,7 +17,7 @@ const routes = [
     path: '/buyers',
     name: 'BuyersView',
 
-    component: BuyersView//() => import(/* webpackChunkName: "buyersview" */ '../views/BuyersView.vue')
+    component: () => import(/* webpackChunkName: "buyersview" */ '../views/BuyersView.vue')
   }
 ]
 

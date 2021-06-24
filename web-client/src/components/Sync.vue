@@ -24,6 +24,7 @@
         try {
           const response = await this.axios.get(`http://localhost:4000/sync`, 
             {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
+            
           console.log(response.data.task + date + event)
           
         } catch(err) {
