@@ -71,6 +71,16 @@ func main() {
 
 	// endpoint: load data to dgraph
 	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
+
+		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+		if err != nil { log.Fatal(err) }		
+		defer conn.Close()		
+		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+
+		// drop all data before loading new data to dgraph
+		if err := dgraphClient.Alter(context.Background(), &api.Operation{DropOp: api.Operation_DATA}); err != nil {
+			log.Fatal(err)
+		}
 		
 		currentTime := r.URL.Query().Get("date")
 
@@ -84,11 +94,11 @@ func main() {
 
 		/*
 		* connection to dgraph
-		*/
+		*
 		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
 		if err != nil { log.Fatal(err) }		
 		defer conn.Close()		
-		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))*/
 
 		/*
 		* encode buyers
