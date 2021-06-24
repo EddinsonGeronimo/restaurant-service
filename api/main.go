@@ -93,14 +93,6 @@ func main() {
 		transData  := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date", currentTime))
 
 		/*
-		* connection to dgraph
-		*
-		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
-		if err != nil { log.Fatal(err) }		
-		defer conn.Close()		
-		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))*/
-
-		/*
 		* encode buyers
 		*/
 		var inBuyers []IncomingBuyer
