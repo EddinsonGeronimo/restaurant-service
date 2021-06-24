@@ -225,7 +225,7 @@ func main() {
 		/*
 		* connection to dgraph
 		*/
-		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
+		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
 		if err != nil { log.Fatal(err) }		
 		defer conn.Close()		
 		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))

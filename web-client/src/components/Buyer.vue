@@ -1,7 +1,7 @@
 <template>
     <v-container>
     <v-row
-        align-start
+        justify="center"
         >
         <v-col
             cols="1"
@@ -29,7 +29,7 @@
             </v-text-field>
         </v-col>
     </v-row>
-    <h1>Transactions</h1>
+    <h1 v-show="progress">Transactions</h1>
     <v-card class="mx-auto" tile>
             <v-list-group
                 :value="true"
@@ -61,8 +61,8 @@
                 </v-list-item>
             </v-list-group>
     </v-card>
-    <v-divider></v-divider>
-    <h1>Buyers with same IP address</h1>
+    <v-divider v-show="progress"></v-divider>
+    <h1 v-show="progress">Buyers with same IP address</h1>
     <v-card class="mx-auto" tile>
         <v-list-item 
             v-for="item in otherBuyers"
@@ -73,8 +73,8 @@
             </v-list-item-content>
         </v-list-item>
     </v-card>
-    <v-divider></v-divider>
-    <h1>Recommended products</h1>
+    <v-divider v-show="progress"></v-divider>
+    <h1 v-show="progress">Recommended products</h1>
     <v-card class="mx-auto" tile>
         <v-list-item
             v-for="item in recommendedProducts"
@@ -99,12 +99,17 @@ export default {
         otherBuyers: [],
         recommendedProducts: [],
         loading: false,
-        buyerid: ''
+        buyerid: '',
+        progress: false
     }),
 
-    // must be removed
     methods: {
         click: async function(){
+            
+            if(this.buyerid.length == 0) {
+                alert(`The 'Buyer id' field is required.`)
+                return
+            }
             this.loading = true
             try{
                 const response = await this.axios.get(`http://localhost:4000/buyer?id=${this.buyerid}`, 
@@ -113,6 +118,8 @@ export default {
                 this.transactions = response.data.buyertransactions[0]
                 this.otherBuyers = response.data.hassameip
                 this.recommendedProducts = response.data.Rproducts
+
+                this.progress = true
             }
             catch(err){
                 if (err.response) {
