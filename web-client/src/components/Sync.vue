@@ -11,6 +11,16 @@
       >
       </v-date-picker>
     </v-row>
+    <v-row>
+      <v-progress-linear
+        color="cyan lighten-5"
+        indeterminate
+        rounded
+        height="5"
+        v-show="progress"
+        >
+      </v-progress-linear>      
+    </v-row>
   </v-container>
 </template>
 
@@ -20,27 +30,29 @@
 
     data: () => ({
         picker: new Date().toISOString().substr(0, 10),
+        progress: false
     }),
     
     methods: {
       click: async function(date){
+        this.progress = true
         try {
-          const response = await this.axios.get(`http://localhost:4000/sync?date=${date}`, 
+          await this.axios.get(`http://localhost:4000/sync?date=${date}`, 
             {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
             
-          console.log(response.data.date)
-          
+          alert(`Data sync successful.`)
+
         } catch(err) {
           if (err.response) {
-            // client received an error response (5xx, 4xx)
-            console.log("Server Error:", err)
+            alert(`Server Error:${err}` )
           } else if (err.request) {
-            // client never received a response, or request never left
-            console.log("Network Error:", err)
+              alert(`Network Error:${err}`)
           } else {
-            console.log("Client Error:", err)
+              alert(`Client Error:${err}`)
           }
+          
         }
+        this.progress = false
       }
     }
   }

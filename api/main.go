@@ -244,7 +244,7 @@ func main() {
 			  }
 			qProducts (func: type(Product)){
 			  id 
-			  name 
+			  name
 			  ntrans: count(~products)
 			}
 		  }`
@@ -346,9 +346,9 @@ func main() {
 		allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
 		allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
 
-		// filter products linked to more than 300 transactions  
+		// filter products linked to more than 400 transactions  
 		for _,v := range decode.Qproducts {
-			if v.Ntrans > 300 {
+			if v.Ntrans > 400 {
 				allData.Rproducts = append(allData.Rproducts, 
 					struct{ 
 						Id string `json:"id"` 

@@ -1,5 +1,34 @@
 <template>
     <v-container>
+    <v-row
+        align-start
+        >
+        <v-col
+            cols="1"
+            >
+            <v-btn
+                :loading="loading"
+                :disabled="loading"
+                color="blue-grey"
+                class="ma-2 white--text"
+                fab
+                @click="click"
+            >
+                <v-icon dark>
+                    mdi-cloud-download
+                </v-icon>
+            </v-btn> 
+        </v-col>
+        <v-col
+            cols="2"
+            >
+            <v-text-field
+                label="Buyer id"
+                v-model="buyerid"
+                >
+            </v-text-field>
+        </v-col>
+    </v-row>
     <h1>Transactions</h1>
     <v-card class="mx-auto" tile>
             <v-list-group
@@ -26,7 +55,7 @@
                     two-line
                     >
                     <v-list-item-content>
-                        <v-list-item-title v-text="product.name"></v-list-item-title>
+                        <v-list-item-title>Name: {{product.name}}</v-list-item-title>
                         <v-list-item-subtitle>Price: {{product.price}}</v-list-item-subtitle>
                     </v-list-item-content>
                 </v-list-item>
@@ -36,13 +65,11 @@
     <h1>Buyers with same IP address</h1>
     <v-card class="mx-auto" tile>
         <v-list-item 
-            two-line
             v-for="item in otherBuyers"
             :key="item.id"
             >
             <v-list-item-content>
                 <v-list-item-title v-text="item.name"></v-list-item-title>
-                <v-list-item-subtitle>Age: {{item.age}}</v-list-item-subtitle>
             </v-list-item-content>
         </v-list-item>
     </v-card>
@@ -52,9 +79,11 @@
         <v-list-item
             v-for="item in recommendedProducts"
             :key="item.id"
+            two-line
             >
             <v-list-item-content>
-                <v-list-item-title v-text="item.name"></v-list-item-title>
+                <v-list-item-title>Name: {{item.name}}</v-list-item-title>
+                <v-list-item-subtitle>ID: {{item.id}}</v-list-item-subtitle>
             </v-list-item-content>
         </v-list-item>
     </v-card>
@@ -68,29 +97,35 @@ export default {
     data: () => ({
         transactions: [],
         otherBuyers: [],
-        recommendedProducts: []
+        recommendedProducts: [],
+        loading: false,
+        buyerid: ''
     }),
 
     // must be removed
-    async created() {
-        try{
-            const response = await this.axios.get(`http://localhost:4000/buyer?id=43689b82`, 
+    methods: {
+        click: async function(){
+            this.loading = true
+            try{
+                const response = await this.axios.get(`http://localhost:4000/buyer?id=${this.buyerid}`, 
                 {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
-            
-            this.transactions = response.data.buyertransactions[0]
-            this.otherBuyers = response.data.hassameip
-            this.recommendedProducts = response.data.Rproducts
-
-        } catch(err) {
-            if (err.response) {
-                // client received an error response (5xx, 4xx)
-                console.log("Server Error:", err)
-            } else if (err.request) {
-                // client never received a response, or request never left
-                console.log("Network Error:", err)
-            } else {
-                console.log("Client Error:", err)
+                
+                this.transactions = response.data.buyertransactions[0]
+                this.otherBuyers = response.data.hassameip
+                this.recommendedProducts = response.data.Rproducts
             }
+            catch(err){
+                if (err.response) {
+                    // client received an error response (5xx, 4xx)
+                    console.log("Server Error:", err)
+                } else if (err.request) {
+                    // client never received a response, or request never left
+                    console.log("Network Error:", err)
+                } else {
+                    console.log("Client Error:", err)
+                }
+            }
+            this.loading = false
         }
     }
 }
