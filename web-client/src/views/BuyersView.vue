@@ -9,7 +9,7 @@ export default {
     name: 'BuyersView',
 
     components: {
-      AllBuyers,
-    },
+      AllBuyers
+    }
   }
 </script>

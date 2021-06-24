@@ -3,6 +3,7 @@
     <v-tabs centered>
       <v-tab to="/">Sync</v-tab>
       <v-tab to="/buyers">Buyers</v-tab>
+      <v-tab to="/buyer">Info</v-tab>
     </v-tabs>
     <v-main>
       <router-view/>
@@ -13,10 +14,6 @@
 <script>
 
 export default {
-  name: 'App',
-
-  data: () => ({
-    //
-  }),
+  name: 'App'
 };
 </script>

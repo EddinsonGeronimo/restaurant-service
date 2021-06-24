@@ -9,7 +9,7 @@
     name: 'SyncView',
 
     components: {
-      Sync,
-    },
+      Sync
+    }
   }
 </script>

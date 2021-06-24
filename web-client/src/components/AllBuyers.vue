@@ -3,7 +3,7 @@
         class="mx-auto"
         max-width="400"
         tile
-    >
+        >
         <v-list-item 
             two-line
             v-for="item in items"

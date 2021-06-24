@@ -1,6 +1,9 @@
 <template>
   <v-container>
     <v-row justify="center">
+      <h1>Pick a date</h1>
+    </v-row>
+    <v-row justify="center">
       <v-date-picker 
         v-model="picker" 
         color="#04819E"
