@@ -23,12 +23,12 @@
     }),
     
     methods: {
-      click: async function(date, event){
+      click: async function(date){
         try {
-          const response = await this.axios.get(`http://localhost:4000/sync`, 
+          const response = await this.axios.get(`http://localhost:4000/sync?date=${date}`, 
             {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
             
-          console.log(response.data.task + date + event)
+          console.log(response.data.date)
           
         } catch(err) {
           if (err.response) {
