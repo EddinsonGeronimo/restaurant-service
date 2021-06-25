@@ -14,3 +14,9 @@ Restaurant customers and transactions viewer.
 ### Front end
  
 * Vue 2.6.14 & Vuetify
+
+### Interface
+
+| | | |
+|:--:|:--:|:--:|
+![Sync tab](./screens/sync-tab.png) | ![Sync tab](./screens/buyers-tab.png) | ![Sync tab](./screens/info-tab.png)
