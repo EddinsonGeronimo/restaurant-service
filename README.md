@@ -15,7 +15,7 @@ Restaurant customers and transactions viewer.
  
 * Vue 2.6.14 & Vuetify
 
-### Interface
+## Interface
 
 | | | |
 |:--:|:--:|:--:|
