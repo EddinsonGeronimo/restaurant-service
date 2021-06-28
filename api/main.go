@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"strconv"
+	_"strconv"
 	"os"
 
 	"github.com/dgraph-io/dgo/v210"
@@ -24,7 +24,7 @@ type Buyer struct {
 	Uid string `json:"uid,omitempty"`
 	Id string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
-	Age string `json:"age,omitempty"`
+	Age int `json:"age,omitempty"`
 	DType []string `json:"dgraph.type,omitempty"`
 }
 
@@ -87,14 +87,14 @@ func contains(s []string, str string) bool {
 	return false
 }
 
-func getData(url string, currentTime string) []byte { 
+func getData(url string, currentTime string, c chan string) { 
 	querystr := fmt.Sprintf("%s=%s", url, currentTime)
 	resp, err := http.Get(querystr)		
 	if err != nil { log.Fatal(err) }		
 	defer resp.Body.Close()		
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil { log.Fatal(err) }
-	return data
+	c <- string(data)
 }
 
 func loadSchema(){
@@ -152,12 +152,18 @@ func main() {
 			currentTime = time.Now().Format("2006-01-02")
 		}
 
-		buyers := getData(AWS_ENDPOINT + "buyers?date", currentTime)
-		prodData := string(getData(AWS_ENDPOINT + "products?date", currentTime))
-		transData  := string(getData(AWS_ENDPOINT + "transactions?date", currentTime))
+		c1 := make(chan string)
+		go getData(AWS_ENDPOINT + "buyers?date", currentTime, c1)
+		buyers := <-c1
+		c2 := make(chan string)
+		go getData(AWS_ENDPOINT + "products?date", currentTime, c2)
+		prodData := <-c2
+		c3 := make(chan string)
+		go getData(AWS_ENDPOINT + "transactions?date", currentTime, c3)
+		transData  := <-c3
 
 		/*
-		* encode buyers
+		* process buyers
 		*/
 		var awsBuyers []struct{
 			Id string `json:"id"`
@@ -167,7 +173,7 @@ func main() {
 
 		var dgBuyers []Buyer
 
-		if err := json.Unmarshal(buyers, &awsBuyers); err != nil { log.Fatal(err) }
+		if err := json.Unmarshal([]byte(buyers), &awsBuyers); err != nil { log.Fatal(err) }
 		
 		for _, v := range awsBuyers {
 			dgBuyers = append(
@@ -176,9 +182,12 @@ func main() {
 					Uid: `_:`+ v.Id, 
 					Id: v.Id, 
 					Name: v.Name, 
-					Age: strconv.Itoa(v.Age), 
-					DType: []string{"Buyer"} })
+					Age: v.Age, 
+					DType: []string{"Buyer"}, 
+				},
+			)
 		}
+
 		/*
 		* process products
 		*/
@@ -189,9 +198,27 @@ func main() {
 			inl2 := strings.Split(inl,`'`)
 
 			if len(inl2) == 3 {
-				prodList = append(prodList, Product{Uid: `_:`+inl2[0], Id: inl2[0], Name: inl2[1], Price: inl2[2], DType: []string{"Product"} })
-			}else if len(inl2) == 4 {
-				prodList = append(prodList, Product{Uid: `_:`+inl2[0], Id: inl2[0], Name: inl2[1]+inl2[2], Price: inl2[3], DType: []string{"Product"} })
+				prodList = append(
+					prodList, 
+					Product{
+						Uid: `_:`+inl2[0], 
+						Id: inl2[0], 
+						Name: inl2[1], 
+						Price: inl2[2], 
+						DType: []string{"Product"}, 
+					},
+				)
+			} else if len(inl2) == 4 {
+				prodList = append(
+					prodList, 
+					Product{
+						Uid: `_:`+inl2[0], 
+						Id: inl2[0], 
+						Name: inl2[1]+inl2[2], 
+						Price: inl2[3], 
+						DType: []string{"Product"}, 
+					},
+				)
 			}
 		}
 	
