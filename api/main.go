@@ -152,15 +152,15 @@ func main() {
 			currentTime = time.Now().Format("2006-01-02")
 		}
 
-		c1 := make(chan string)
-		go getData(AWS_ENDPOINT + "buyers?date", currentTime, c1)
-		buyers := <-c1
-		c2 := make(chan string)
-		go getData(AWS_ENDPOINT + "products?date", currentTime, c2)
-		prodData := <-c2
-		c3 := make(chan string)
-		go getData(AWS_ENDPOINT + "transactions?date", currentTime, c3)
-		transData  := <-c3
+		c := make(chan string)
+
+		go getData(AWS_ENDPOINT + "buyers?date", currentTime, c)
+		go getData(AWS_ENDPOINT + "products?date", currentTime, c)
+		go getData(AWS_ENDPOINT + "transactions?date", currentTime, c)
+
+		buyers := <-c
+		prodData := <-c
+		transData  := <-c
 
 		/*
 		* process buyers
