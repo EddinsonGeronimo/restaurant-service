@@ -20,13 +20,7 @@ import (
 	"github.com/go-chi/cors"
 )
 
-type IncomingBuyer struct {
-	Id string `json:"id"`
-	Name string `json:"name"`
-	Age int `json:"age"`
-}
-
-type DgBuyer struct {
+type Buyer struct {
 	Uid string `json:"uid,omitempty"`
 	Id string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
@@ -45,11 +39,84 @@ type Product struct {
 type Transaction struct {
 	Uid string `json:"uid,omitempty"`
 	Id string `json:"id,omitempty"`
-	Buyer DgBuyer `json:"buyer,omitempty"`
+	Buyer Buyer `json:"buyer,omitempty"`
 	Ip string `json:"ip,omitempty"`
 	Device string `json:"device,omitempty"`
 	Products []Product `json:"products,omitempty"`
 	DType []string `json:"dgraph.type,omitempty"`
+}
+
+const SCHEMA = `
+	<Id>: string @index(exact) .
+	<age>: string .
+	<buyer>: uid @reverse .
+	<buyers>: [uid] .
+	<device>: string .
+	<id>: string .
+	<ip>: string .
+	<name>: string .
+	<price>: float .
+	<products>: [uid] @count @reverse .
+	type <Buyer> {
+		Id
+		name
+		age
+	}
+	type <Product> {
+		Id
+		name
+		price
+	}
+	type <Transaction> {
+		Id
+		buyer
+		ip
+		device
+		products
+	}`
+
+const AWS_ENDPOINT = `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
+
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getData(url string, currentTime string) []byte { 
+	querystr := fmt.Sprintf("%s=%s", url, currentTime)
+	resp, err := http.Get(querystr)		
+	if err != nil { log.Fatal(err) }		
+	defer resp.Body.Close()		
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil { log.Fatal(err) }
+	return data
+}
+
+func loadSchema(){
+		
+	dgraphClient := newClient()
+
+	op := &api.Operation{}
+	op.Schema = SCHEMA
+	
+	if err := dgraphClient.Alter(context.Background(), op); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func newClient() *dgo.Dgraph {
+
+	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
+	if err != nil { log.Fatal(err) }
+
+	return dgo.NewDgraphClient(
+		api.NewDgraphClient(conn),
+	)
 }
 
 func main() {
@@ -72,10 +139,7 @@ func main() {
 	// endpoint: load data to dgraph
 	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
 
-		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
-		if err != nil { log.Fatal(err) }		
-		defer conn.Close()		
-		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+		dgraphClient := newClient()
 
 		// drop all data before loading new data to dgraph
 		if err := dgraphClient.Alter(context.Background(), &api.Operation{DropOp: api.Operation_DATA}); err != nil {
@@ -88,19 +152,32 @@ func main() {
 			currentTime = time.Now().Format("2006-01-02")
 		}
 
-		buyers := getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/buyers?date", currentTime)
-		prodData := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/products?date", currentTime))
-		transData  := string(getData("https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/transactions?date", currentTime))
+		buyers := getData(AWS_ENDPOINT + "buyers?date", currentTime)
+		prodData := string(getData(AWS_ENDPOINT + "products?date", currentTime))
+		transData  := string(getData(AWS_ENDPOINT + "transactions?date", currentTime))
 
 		/*
 		* encode buyers
 		*/
-		var inBuyers []IncomingBuyer
-		var outBuyers []DgBuyer
-		if err := json.Unmarshal(buyers, &inBuyers); err != nil { log.Fatal(err) }
+		var awsBuyers []struct{
+			Id string `json:"id"`
+			Name string `json:"name"`
+			Age int `json:"age"`
+		}
+
+		var dgBuyers []Buyer
+
+		if err := json.Unmarshal(buyers, &awsBuyers); err != nil { log.Fatal(err) }
 		
-		for _, v := range inBuyers {
-			outBuyers = append(outBuyers, DgBuyer{Uid: `_:`+v.Id, Id: v.Id, Name: v.Name, Age: strconv.Itoa(v.Age), DType: []string{"Buyer"} })
+		for _, v := range awsBuyers {
+			dgBuyers = append(
+				dgBuyers, 
+				Buyer{
+					Uid: `_:`+ v.Id, 
+					Id: v.Id, 
+					Name: v.Name, 
+					Age: strconv.Itoa(v.Age), 
+					DType: []string{"Buyer"} })
 		}
 		/*
 		* process products
@@ -128,12 +205,12 @@ func main() {
 			if i == 0 {continue}
 
 			newL := strings.Split(inl,"\x00")
-			var dgbuyer DgBuyer
+			var dgbuyer Buyer
 			var dgprodList []Product
 			transProdIds := strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ",")
 
 			// get buyer
-			for _,v := range outBuyers{
+			for _,v := range dgBuyers{
 				if v.Id == newL[1] {dgbuyer = v}
 			}
 
@@ -368,66 +445,4 @@ func main() {
 	})
 
 	http.ListenAndServe(":4000", r)
-}
-
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-
-	return false
-}
-
-func getData(url string, currentTime string) []byte { 
-	querystr := fmt.Sprintf("%s=%s", url, currentTime)
-	resp, err := http.Get(querystr)		
-	if err != nil { log.Fatal(err) }		
-	defer resp.Body.Close()		
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil { log.Fatal(err) }
-	return data
-}
-
-func loadSchema(){
-	
-	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
-	if err != nil { log.Fatal(err) }		
-	defer conn.Close()		
-	dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
-
-	op := &api.Operation{}
-	op.Schema = `
-	<Id>: string @index(exact) .
-	<age>: string .
-	<buyer>: uid @reverse .
-	<buyers>: [uid] .
-	<device>: string .
-	<id>: string .
-	<ip>: string .
-	<name>: string .
-	<price>: float .
-	<products>: [uid] @count @reverse .
-	type <Buyer> {
-		Id
-		name
-		age
-	}
-	type <Product> {
-		Id
-		name
-		price
-	}
-	type <Transaction> {
-		Id
-		buyer
-		ip
-		device
-		products
-	}`
-	
-	if err := dgraphClient.Alter(context.Background(), op); err != nil {
-		log.Fatal(err)
-	}
 }
