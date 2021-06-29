@@ -44,7 +44,7 @@ export default {
             const response = await this.axios.get(`http://localhost:4000/buyers`, 
                 {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
             
-            this.items = response.data
+            this.items = response.data.q
 
         } catch(err) {
             if (err.response) {

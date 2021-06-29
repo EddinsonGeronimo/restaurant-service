@@ -74,6 +74,8 @@ const SCHEMA = `
 		products
 	}`
 
+const QUERY_BUYERS = `{ q (func: type(Buyer)) @filter(gt(count(~buyer),0)) { id name age } }`
+
 const AWS_ENDPOINT = `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
 
 func contains(s []string, str string) bool {
@@ -295,52 +297,14 @@ func main() {
 
 	// endpoint: return buyers who have transactions
 	r.Get("/buyers",func(w http.ResponseWriter, r *http.Request){
-		/*
-		* connection to dgraph
-		*/
-		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())		
-		if err != nil { log.Fatal(err) }		
-		defer conn.Close()		
-		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+				
+		dgraphClient := newClient()
 
-		const query = `{ q (func: type(Buyer)) { id name age transactions: ~buyer { id } } }`
-
-		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query)
-		if err != nil { log.Fatal(err) }
-
-		var decode struct { 
-			Q []struct { 
-				Id string `json:"id"`
-				Name string `json:"name"`
-				Age string `json:"age"`
-				Transactions []struct{ Id string `json:"id"`}
-			} 
-		}
-		
-		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
-			log.Fatal(err)
-		}
-
-		type Buyer struct{
-			Id string `json:"id"`
-			Name string `json:"name"`
-			Age string `json:"age"`
-		}
-
-		var buyersWithTrans []Buyer
-
-		for _,v := range decode.Q{
-			if len(v.Transactions) > 0 {
-				buyersWithTrans = append(buyersWithTrans, Buyer{Id: v.Id, Name: v.Name, Age: v.Age})
-			}
-		}
-		
-		data, err := json.Marshal(&buyersWithTrans)
-
+		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYERS)
 		if err != nil { log.Fatal(err) }
 
 		// if 'data' is empty than 'data' is null
-		w.Write(data)
+		w.Write(resp.GetJson())
 	})
 	
 	// endpoint: return transactions of buyerId and buyers with same ip , also recommended products 
