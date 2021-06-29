@@ -87,14 +87,14 @@ func contains(s []string, str string) bool {
 	return false
 }
 
-func getData(url string, currentTime string, c chan string) { 
+func getData(url string, currentTime string, item string, c chan itemData) { 
 	querystr := fmt.Sprintf("%s=%s", url, currentTime)
 	resp, err := http.Get(querystr)		
 	if err != nil { log.Fatal(err) }		
 	defer resp.Body.Close()		
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil { log.Fatal(err) }
-	c <- string(data)
+	c <- itemData{string(data), item}
 }
 
 func loadSchema(){
@@ -117,6 +117,11 @@ func newClient() *dgo.Dgraph {
 	return dgo.NewDgraphClient(
 		api.NewDgraphClient(conn),
 	)
+}
+
+type itemData struct {
+	data string
+	item string
 }
 
 func main() {
@@ -152,15 +157,26 @@ func main() {
 			currentTime = time.Now().Format("2006-01-02")
 		}
 
-		c := make(chan string)
+		c := make(chan itemData)
+		defer close(c)
+		go getData(AWS_ENDPOINT + "products?date", currentTime, "products", c)
+		go getData(AWS_ENDPOINT + "transactions?date", currentTime,"transactions", c)
+		go getData(AWS_ENDPOINT + "buyers?date", currentTime,"buyers", c)
+		
+		var prodData, buyers, transData string
 
-		go getData(AWS_ENDPOINT + "buyers?date", currentTime, c)
-		go getData(AWS_ENDPOINT + "products?date", currentTime, c)
-		go getData(AWS_ENDPOINT + "transactions?date", currentTime, c)
+		result := make([]itemData, 3)
 
-		buyers := <-c
-		prodData := <-c
-		transData  := <-c
+		for i,_ := range result{
+			result[i] = <-c
+			if result[i].item == "products"{
+				prodData = result[i].data
+			} else if result[i].item == "transactions"{
+				transData = result[i].data
+			} else if result[i].item == "buyers"{
+				buyers = result[i].data
+			}
+		}
 
 		/*
 		* process buyers
@@ -192,7 +208,7 @@ func main() {
 		* process products
 		*/
 		var prodList []Product
-		pLine := strings.Split(prodData,"\n")
+		pLine := strings.Split(string(prodData),"\n")
 
 		for _, inl := range pLine {
 			inl2 := strings.Split(inl,`'`)
@@ -226,7 +242,7 @@ func main() {
 		* process transactions
 		*/
 		var pTrans []Transaction
-		tLine := strings.Split(transData,"#")
+		tLine := strings.Split(string(transData),"#")
 
 		for i, inl := range tLine {
 			if i == 0 {continue}
