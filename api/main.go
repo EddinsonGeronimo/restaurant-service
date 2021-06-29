@@ -291,8 +291,6 @@ func main() {
 
 		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
 		if err != nil { log.Fatal(err) }
-
-		w.WriteHeader(http.StatusNoContent)
 	})
 
 	// endpoint: return buyers who have transactions
