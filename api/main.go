@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	_"strconv"
 	"os"
 
 	"github.com/dgraph-io/dgo/v210"
@@ -191,17 +190,19 @@ func main() {
 
 		if err := json.Unmarshal([]byte(buyers), &awsBuyers); err != nil { log.Fatal(err) }
 		
-		for _, v := range awsBuyers {
-			dgBuyers = append(
-				dgBuyers, 
-				Buyer{
-					Uid: `_:`+ v.Id, 
-					Id: v.Id, 
-					Name: v.Name, 
-					Age: v.Age, 
-					DType: []string{"Buyer"}, 
-				},
-			)
+		processBuyers := func() {
+			for _, v := range awsBuyers {
+				dgBuyers = append(
+					dgBuyers, 
+					Buyer{
+						Uid: `_:`+ v.Id, 
+						Id: v.Id, 
+						Name: v.Name, 
+						Age: v.Age, 
+						DType: []string{"Buyer"}, 
+					},
+				)
+			}
 		}
 
 		/*
@@ -210,34 +211,39 @@ func main() {
 		var prodList []Product
 		pLine := strings.Split(string(prodData),"\n")
 
-		for _, inl := range pLine {
-			inl2 := strings.Split(inl,`'`)
-
-			if len(inl2) == 3 {
-				prodList = append(
-					prodList, 
-					Product{
-						Uid: `_:`+inl2[0], 
-						Id: inl2[0], 
-						Name: inl2[1], 
-						Price: inl2[2], 
-						DType: []string{"Product"}, 
-					},
-				)
-			} else if len(inl2) == 4 {
-				prodList = append(
-					prodList, 
-					Product{
-						Uid: `_:`+inl2[0], 
-						Id: inl2[0], 
-						Name: inl2[1]+inl2[2], 
-						Price: inl2[3], 
-						DType: []string{"Product"}, 
-					},
-				)
+		processProducts := func(){
+			for _, inl := range pLine {
+				inl2 := strings.Split(inl,`'`)
+	
+				if len(inl2) == 3 {
+					prodList = append(
+						prodList, 
+						Product{
+							Uid: `_:`+inl2[0], 
+							Id: inl2[0], 
+							Name: inl2[1], 
+							Price: inl2[2], 
+							DType: []string{"Product"}, 
+						},
+					)
+				} else if len(inl2) == 4 {
+					prodList = append(
+						prodList, 
+						Product{
+							Uid: `_:`+inl2[0], 
+							Id: inl2[0], 
+							Name: inl2[1]+inl2[2], 
+							Price: inl2[3], 
+							DType: []string{"Product"}, 
+						},
+					)
+				}
 			}
 		}
 	
+		go processBuyers()
+		go processProducts()
+
 		/*
 		* process transactions
 		*/
@@ -284,7 +290,7 @@ func main() {
 		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
 		if err != nil { log.Fatal(err) }
 
-		w.Write([]byte(fmt.Sprintf(`{"date": "%s"}`, currentTime)))
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	// endpoint: return buyers who have transactions
