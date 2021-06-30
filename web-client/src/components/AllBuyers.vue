@@ -13,15 +13,13 @@
                 class="mx-auto"
                 tile
                 >
-                <v-list-item 
-                    three-line
+                <v-list-item
                     v-for="item in items"
                     :key="item.id"
                     @click="click(item)"
                     >
                     <v-list-item-content>
                         <v-list-item-title v-text="item.name"></v-list-item-title>
-                        <v-list-item-subtitle>Age: {{item.age}}</v-list-item-subtitle>
                     </v-list-item-content>
                 </v-list-item>
             </v-card>
@@ -61,8 +59,7 @@ export default {
 
     methods: {
         click: async function(item){
-            this.$router.push({name:'BuyerView', params: {itemId: item.id}})
-            //alert(`${item.id}`)
+            this.$router.push({name:'BuyerView', params: {itemId: item.id, itemName: item.name, itemAge: item.age}})
         }
     }
 }

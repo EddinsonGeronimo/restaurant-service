@@ -29,6 +29,10 @@
             </v-text-field>
         </v-col>
     </v-row>
+    <h1 v-show="progress">Buyer</h1>
+    <h3 v-show="progress">Name: {{buyername}}</h3>
+    <h3 v-show="progress">Age: {{buyerage}}</h3>
+    <v-divider v-show="progress"></v-divider>
     <h1 v-show="progress">Transactions</h1>
     <v-card class="mx-auto" tile>
             <v-list-group
@@ -100,15 +104,17 @@ export default {
         recommendedProducts: [],
         loading: false,
         buyerid: '',
+        buyername: '',
+        buyerage: '',
         progress: false
     }),
 
     async created(){
-        this.showAlert()
+        this.loadBuyer()
     },
 
     watch: {
-        '$route': 'showAlert'
+        '$route': 'loadBuyer'
     },
 
     methods: {
@@ -142,8 +148,10 @@ export default {
             this.loading = false
         },
 
-        showAlert: async function(){
+        loadBuyer: async function(){
             this.buyerid = this.$route.params.itemId
+            this.buyername = this.$route.params.itemName
+            this.buyerage = this.$route.params.itemAge
             this.click()
         }
     }
