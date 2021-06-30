@@ -23,6 +23,7 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -32,21 +33,16 @@ func main() {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	  }))
 
-	if len(os.Args) > 1 && os.Args[1] == "--load-schema" {
+	if len(os.Args) > 1 && os.Args[1] == "--setup-schema" {
 		dgraphClient := newClient()
-
-		op := &api.Operation{}
-		op.Schema = SCHEMA
 		
-		if err := dgraphClient.Alter(context.Background(), op); err != nil {
+		if err := dgraphClient.Alter(context.Background(), &api.Operation{Schema: SCHEMA}); err != nil {
 			log.Fatal(err)
 		}	
 	}
 
-	r.Get("/sync", func(w http.ResponseWriter, r *http.Request){
-		date := r.URL.Query().Get("date")
-		
-		sync(date)
+	r.Route("/sync", func(r chi.Router) {
+		r.Get("/",sync)
 	})
 
 	r.Route("/buyers", func(r chi.Router) {
@@ -60,12 +56,15 @@ func main() {
 	http.ListenAndServe(":4000", r)
 }
 
-func sync(date string){
+func sync(w http.ResponseWriter, r *http.Request){
+	date := r.URL.Query().Get("date")
+
 	dgraphClient := newClient()
 
 	// drop all data before loading new data to dgraph
 	if err := dgraphClient.Alter(context.Background(), &api.Operation{DropOp: api.Operation_DATA}); err != nil {
 		log.Fatal(err)
+		http.Error(w,http.StatusText(http.StatusInternalServerError),500)
 	}
 
 	if len(date) == 0 {
@@ -204,7 +203,10 @@ func sync(date string){
 	mu := &api.Mutation{ CommitNow: true, SetJson: jsonData}
 
 	_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
-	if err != nil { log.Fatal(err) }
+	if err != nil { 
+		log.Fatal(err)
+		http.Error(w,http.StatusText(http.StatusInternalServerError),500) 
+	}
 }
 
 func searchBuyers(w http.ResponseWriter, r *http.Request){
@@ -356,7 +358,9 @@ func getData(url string, date string, item string, c chan itemData) {
 func newClient() *dgo.Dgraph {
 
 	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
-	if err != nil { log.Fatal(err) }
+	if err != nil { 
+		log.Fatal(err)
+	}
 
 	return dgo.NewDgraphClient(
 		api.NewDgraphClient(conn),
