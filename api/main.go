@@ -19,109 +19,6 @@ import (
 	"github.com/go-chi/cors"
 )
 
-type Buyer struct {
-	Uid string `json:"uid,omitempty"`
-	Id string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-	Age int `json:"age,omitempty"`
-	DType []string `json:"dgraph.type,omitempty"`
-}
-
-type Product struct {
-	Uid string `json:"uid,omitempty"`
-	Id string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-	Price string `json:"price,omitempty"`
-	DType []string `json:"dgraph.type,omitempty"`
-}
-
-type Transaction struct {
-	Uid string `json:"uid,omitempty"`
-	Id string `json:"id,omitempty"`
-	Buyer Buyer `json:"buyer,omitempty"`
-	Ip string `json:"ip,omitempty"`
-	Device string `json:"device,omitempty"`
-	Products []Product `json:"products,omitempty"`
-	DType []string `json:"dgraph.type,omitempty"`
-}
-
-const SCHEMA = `
-	<Id>: string @index(exact) .
-	<age>: string .
-	<buyer>: uid @reverse .
-	<buyers>: [uid] .
-	<device>: string .
-	<id>: string .
-	<ip>: string .
-	<name>: string .
-	<price>: float .
-	<products>: [uid] @count @reverse .
-	type <Buyer> {
-		Id
-		name
-		age
-	}
-	type <Product> {
-		Id
-		name
-		price
-	}
-	type <Transaction> {
-		Id
-		buyer
-		ip
-		device
-		products
-	}`
-
-const QUERY_BUYERS = `{ q (func: type(Buyer)) @filter(gt(count(~buyer),0)) { id name age } }`
-
-const AWS_ENDPOINT = `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
-
-const QUERY_BUYER_INFO = `{ 
-	q (func: type(Buyer)) {
-		id 
-		name 
-		age 
-		transactions: ~buyer { 
-			id 
-			ip
-			device 
-			products { name price } 
-		  } 
-	  }
-	qProducts (func: type(Product)){
-	  id 
-	  name
-	  ntrans: count(~products)
-	}
-  }`
-
-func getData(url string, currentTime string, item string, c chan itemData) { 
-	querystr := fmt.Sprintf("%s=%s", url, currentTime)
-	resp, err := http.Get(querystr)		
-	if err != nil { log.Fatal(err) }		
-	defer resp.Body.Close()		
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil { log.Fatal(err) }
-	c <- itemData{string(data), item}
-}
-
-func newClient() *dgo.Dgraph {
-
-	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
-	if err != nil { log.Fatal(err) }
-
-	return dgo.NewDgraphClient(
-		api.NewDgraphClient(conn),
-	)
-}
-
-type itemData struct {
-	data string
-	item string
-}
-
 func main() {
 
 	r := chi.NewRouter()
@@ -298,7 +195,7 @@ func main() {
 	})
 
 	// endpoint: return buyers who have transactions
-	r.Get("/buyers",func(w http.ResponseWriter, r *http.Request){
+	/*r.Get("/buyers",func(w http.ResponseWriter, r *http.Request){
 				
 		dgraphClient := newClient()
 
@@ -306,8 +203,12 @@ func main() {
 		if err != nil { log.Fatal(err) }
 
 		w.Write(resp.GetJson())
-	})
+	})*/
 	
+	r.Route("/buyers", func(r chi.Router) {
+		r.Get("/search", SearchBuyers)
+	})
+
 	// endpoint: return transactions of buyerId and buyers with same ip , also recommended products 
 	r.Get("/buyer",func(w http.ResponseWriter, r *http.Request){
 		
@@ -438,4 +339,116 @@ func main() {
 	})
 
 	http.ListenAndServe(":4000", r)
+}
+
+func SearchBuyers(w http.ResponseWriter, r *http.Request){
+	dgraphClient := newClient()
+
+	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYERS)
+	if err != nil { log.Fatal(err) }
+
+	w.Write(resp.GetJson())
+}
+
+const SCHEMA = `
+	<Id>: string @index(exact) .
+	<age>: string .
+	<buyer>: uid @reverse .
+	<buyers>: [uid] .
+	<device>: string .
+	<id>: string .
+	<ip>: string .
+	<name>: string .
+	<price>: float .
+	<products>: [uid] @count @reverse .
+	type <Buyer> {
+		Id
+		name
+		age
+	}
+	type <Product> {
+		Id
+		name
+		price
+	}
+	type <Transaction> {
+		Id
+		buyer
+		ip
+		device
+		products
+	}`
+
+const QUERY_BUYERS = `{ q (func: type(Buyer)) @filter(gt(count(~buyer),0)) { id name age } }`
+
+const AWS_ENDPOINT = `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
+
+const QUERY_BUYER_INFO = `{ 
+	q (func: type(Buyer)) {
+		id 
+		name 
+		age 
+		transactions: ~buyer { 
+			id 
+			ip
+			device 
+			products { name price } 
+		  } 
+	  }
+	qProducts (func: type(Product)){
+	  id 
+	  name
+	  ntrans: count(~products)
+	}
+  }`
+
+func getData(url string, currentTime string, item string, c chan itemData) { 
+	querystr := fmt.Sprintf("%s=%s", url, currentTime)
+	resp, err := http.Get(querystr)		
+	if err != nil { log.Fatal(err) }		
+	defer resp.Body.Close()		
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil { log.Fatal(err) }
+	c <- itemData{string(data), item}
+}
+
+func newClient() *dgo.Dgraph {
+
+	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
+	if err != nil { log.Fatal(err) }
+
+	return dgo.NewDgraphClient(
+		api.NewDgraphClient(conn),
+	)
+}
+
+type Buyer struct {
+	Uid string `json:"uid,omitempty"`
+	Id string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Age int `json:"age,omitempty"`
+	DType []string `json:"dgraph.type,omitempty"`
+}
+
+type Product struct {
+	Uid string `json:"uid,omitempty"`
+	Id string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Price string `json:"price,omitempty"`
+	DType []string `json:"dgraph.type,omitempty"`
+}
+
+type Transaction struct {
+	Uid string `json:"uid,omitempty"`
+	Id string `json:"id,omitempty"`
+	Buyer Buyer `json:"buyer,omitempty"`
+	Ip string `json:"ip,omitempty"`
+	Device string `json:"device,omitempty"`
+	Products []Product `json:"products,omitempty"`
+	DType []string `json:"dgraph.type,omitempty"`
+}
+
+type itemData struct {
+	data string
+	item string
 }
