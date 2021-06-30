@@ -48,7 +48,7 @@ func main() {
 		
 		sync(date)
 	})
-	
+
 	r.Route("/buyers", func(r chi.Router) {
 		r.Get("/search", searchBuyers)
 
@@ -219,8 +219,6 @@ func searchBuyers(w http.ResponseWriter, r *http.Request){
 func getBuyer(w http.ResponseWriter, r *http.Request){
 	buyerId := chi.URLParam(r, "buyerId")
 
-	fmt.Println(buyerId)
-
 	dgraphClient := newClient()
 
 	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYER_INFO)
@@ -278,7 +276,7 @@ func getBuyer(w http.ResponseWriter, r *http.Request){
 		Age string `json:"age"`
 	}
 
-	// store all buyers with same ips as buyerId
+	// store all buyers with same ip as buyerId
 	var hasSameIp []Buyer
 
 	for _,v := range buyerTrans {
@@ -345,6 +343,26 @@ func getBuyer(w http.ResponseWriter, r *http.Request){
 	w.Write(data)
 }
 
+func getData(url string, date string, item string, c chan itemData) { 
+	querystr := fmt.Sprintf("%s=%s", url, date)
+	resp, err := http.Get(querystr)		
+	if err != nil { log.Fatal(err) }		
+	defer resp.Body.Close()		
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil { log.Fatal(err) }
+	c <- itemData{string(data), item}
+}
+
+func newClient() *dgo.Dgraph {
+
+	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
+	if err != nil { log.Fatal(err) }
+
+	return dgo.NewDgraphClient(
+		api.NewDgraphClient(conn),
+	)
+}
+
 const SCHEMA = `
 	<Id>: string @index(exact) .
 	<age>: string .
@@ -396,26 +414,6 @@ const QUERY_BUYER_INFO = `{
 	  ntrans: count(~products)
 	}
   }`
-
-func getData(url string, date string, item string, c chan itemData) { 
-	querystr := fmt.Sprintf("%s=%s", url, date)
-	resp, err := http.Get(querystr)		
-	if err != nil { log.Fatal(err) }		
-	defer resp.Body.Close()		
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil { log.Fatal(err) }
-	c <- itemData{string(data), item}
-}
-
-func newClient() *dgo.Dgraph {
-
-	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
-	if err != nil { log.Fatal(err) }
-
-	return dgo.NewDgraphClient(
-		api.NewDgraphClient(conn),
-	)
-}
 
 type Buyer struct {
 	Uid string `json:"uid,omitempty"`

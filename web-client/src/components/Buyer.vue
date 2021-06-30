@@ -126,7 +126,7 @@ export default {
             }
             this.loading = true
             try{
-                const response = await this.axios.get(`http://localhost:4000/buyer?id=${this.buyerid}`, 
+                const response = await this.axios.get(`http://localhost:4000/buyers/${this.buyerid}`, 
                 {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
                 
                 this.transactions = response.data.buyertransactions[0]

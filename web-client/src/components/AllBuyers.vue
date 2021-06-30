@@ -39,7 +39,7 @@ export default {
     async mounted() {
         this.progress = true
         try{
-            const response = await this.axios.get(`http://localhost:4000/buyers`, 
+            const response = await this.axios.get(`http://localhost:4000/buyers/search`, 
                 {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
             
             this.items = response.data.q
