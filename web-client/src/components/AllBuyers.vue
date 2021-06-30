@@ -17,11 +17,11 @@
                     three-line
                     v-for="item in items"
                     :key="item.id"
+                    @click="click(item)"
                     >
                     <v-list-item-content>
                         <v-list-item-title v-text="item.name"></v-list-item-title>
                         <v-list-item-subtitle>Age: {{item.age}}</v-list-item-subtitle>
-                        <v-list-item-subtitle>ID: {{item.id}}</v-list-item-subtitle>
                     </v-list-item-content>
                 </v-list-item>
             </v-card>
@@ -38,7 +38,7 @@ export default {
         progress: false
     }),
 
-    async created() {
+    async mounted() {
         this.progress = true
         try{
             const response = await this.axios.get(`http://localhost:4000/buyers`, 
@@ -48,14 +48,22 @@ export default {
 
         } catch(err) {
             if (err.response) {
-                alert(`Server Error:${err}` )
+                alert(`Server Error`)
             } else if (err.request) {
-                alert(`Network Error:${err}`)
+                alert(`Network Error`)
             } else {
-                alert(`Client Error:${err}`)
+                alert(`Client Error`)
             }
+            this.$router.push({path:'/'})
         }
         this.progress = false
+    },
+
+    methods: {
+        click: async function(item){
+            this.$router.push({name:'BuyerView', params: {itemId: item.id}})
+            //alert(`${item.id}`)
+        }
     }
 }
 </script>

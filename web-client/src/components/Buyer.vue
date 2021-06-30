@@ -103,6 +103,14 @@ export default {
         progress: false
     }),
 
+    async created(){
+        this.showAlert()
+    },
+
+    watch: {
+        '$route': 'showAlert'
+    },
+
     methods: {
         click: async function(){
             
@@ -123,14 +131,20 @@ export default {
             }
             catch(err){
                 if (err.response) {
-                    alert(`Server Error:${err}` )
+                    alert(`Server Error` )
                 } else if (err.request) {
-                    alert(`Network Error:${err}`)
+                    alert(`Network Error`)
                 } else {
-                    alert(`Client Error:${err}`)
+                    alert(`Client Error`)
                 }
+                this.$router.push({path:'/'})
             }
             this.loading = false
+        },
+
+        showAlert: async function(){
+            this.buyerid = this.$route.params.itemId
+            this.click()
         }
     }
 }
