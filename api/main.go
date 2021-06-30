@@ -98,18 +98,6 @@ func getData(url string, currentTime string, item string, c chan itemData) {
 	c <- itemData{string(data), item}
 }
 
-func loadSchema(){
-		
-	dgraphClient := newClient()
-
-	op := &api.Operation{}
-	op.Schema = SCHEMA
-	
-	if err := dgraphClient.Alter(context.Background(), op); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func newClient() *dgo.Dgraph {
 
 	conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
@@ -139,7 +127,14 @@ func main() {
 	  }))
 
 	if len(os.Args) > 1 && os.Args[1] == "--load-schema" {
-		loadSchema()	
+		dgraphClient := newClient()
+
+		op := &api.Operation{}
+		op.Schema = SCHEMA
+		
+		if err := dgraphClient.Alter(context.Background(), op); err != nil {
+			log.Fatal(err)
+		}	
 	}
 
 	// endpoint: load data to dgraph
