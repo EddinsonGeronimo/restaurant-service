@@ -44,169 +44,14 @@ func main() {
 	}
 
 	// endpoint: load data to dgraph
-	r.Get("/sync",func(w http.ResponseWriter, r *http.Request) {
-
-		dgraphClient := newClient()
-
-		// drop all data before loading new data to dgraph
-		if err := dgraphClient.Alter(context.Background(), &api.Operation{DropOp: api.Operation_DATA}); err != nil {
-			log.Fatal(err)
-		}
+	r.Get("/sync", func(w http.ResponseWriter, r *http.Request){
+		date := r.URL.Query().Get("date")
 		
-		currentTime := r.URL.Query().Get("date")
-
-		if len(currentTime) == 0 {
-			currentTime = time.Now().Format("2006-01-02")
-		}
-
-		c := make(chan itemData)
-		defer close(c)
-		go getData(AWS_ENDPOINT + "products?date", currentTime, "products", c)
-		go getData(AWS_ENDPOINT + "transactions?date", currentTime,"transactions", c)
-		go getData(AWS_ENDPOINT + "buyers?date", currentTime,"buyers", c)
-		
-		var prodData, buyers, transData string
-
-		result := make([]itemData, 3)
-
-		for i,_ := range result{
-			result[i] = <-c
-			if result[i].item == "products"{
-				prodData = result[i].data
-			} else if result[i].item == "transactions"{
-				transData = result[i].data
-			} else if result[i].item == "buyers"{
-				buyers = result[i].data
-			}
-		}
-
-		/*
-		* process buyers
-		*/
-		var awsBuyers []struct{
-			Id string `json:"id"`
-			Name string `json:"name"`
-			Age int `json:"age"`
-		}
-
-		var dgBuyers []Buyer
-
-		if err := json.Unmarshal([]byte(buyers), &awsBuyers); err != nil { log.Fatal(err) }
-		
-		processBuyers := func() {
-			for _, v := range awsBuyers {
-				dgBuyers = append(
-					dgBuyers, 
-					Buyer{
-						Uid: `_:`+ v.Id, 
-						Id: v.Id, 
-						Name: v.Name, 
-						Age: v.Age, 
-						DType: []string{"Buyer"}, 
-					},
-				)
-			}
-		}
-
-		/*
-		* process products
-		*/
-		var prodList []Product
-		pLine := strings.Split(string(prodData),"\n")
-
-		processProducts := func(){
-			for _, inl := range pLine {
-				inl2 := strings.Split(inl,`'`)
-	
-				if len(inl2) == 3 {
-					prodList = append(
-						prodList, 
-						Product{
-							Uid: `_:`+inl2[0], 
-							Id: inl2[0], 
-							Name: inl2[1], 
-							Price: inl2[2], 
-							DType: []string{"Product"}, 
-						},
-					)
-				} else if len(inl2) == 4 {
-					prodList = append(
-						prodList, 
-						Product{
-							Uid: `_:`+inl2[0], 
-							Id: inl2[0], 
-							Name: inl2[1]+inl2[2], 
-							Price: inl2[3], 
-							DType: []string{"Product"}, 
-						},
-					)
-				}
-			}
-		}
-	
-		go processBuyers()
-		go processProducts()
-
-		/*
-		* process transactions
-		*/
-		var pTrans []Transaction
-		tLine := strings.Split(string(transData),"#")
-
-		for i, inl := range tLine {
-			if i == 0 {continue}
-
-			newL := strings.Split(inl,"\x00")
-			var dgbuyer Buyer
-			var dgprodList []Product
-			transProdIds := strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ",")
-
-			// get buyer
-			for _,v := range dgBuyers{
-				if v.Id == newL[1] {dgbuyer = v}
-			}
-
-			// get products
-			for _,v := range transProdIds {
-				for _,v1 := range prodList {
-					if v1.Id == v {
-						dgprodList = append(dgprodList, v1)
-					}
-				}
-			}
-
-			pTrans = append(pTrans, Transaction{
-				Uid: `_:`+newL[0],
-				Id: newL[0], 
-				Buyer: dgbuyer, 
-				Ip: newL[2], 
-				Device: newL[3],
-				Products: dgprodList,
-				DType: []string{"Transaction"} })
-		}
-
-		jsonData,err := json.Marshal(pTrans)
-		if err != nil { log.Fatal(err) }
-
-		mu := &api.Mutation{ CommitNow: true, SetJson: jsonData}
-
-		_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
-		if err != nil { log.Fatal(err) }
+		sync(date)
 	})
-
-	// endpoint: return buyers who have transactions
-	/*r.Get("/buyers",func(w http.ResponseWriter, r *http.Request){
-				
-		dgraphClient := newClient()
-
-		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYERS)
-		if err != nil { log.Fatal(err) }
-
-		w.Write(resp.GetJson())
-	})*/
 	
 	r.Route("/buyers", func(r chi.Router) {
-		r.Get("/search", SearchBuyers)
+		r.Get("/search", searchBuyers)
 	})
 
 	// endpoint: return transactions of buyerId and buyers with same ip , also recommended products 
@@ -341,13 +186,164 @@ func main() {
 	http.ListenAndServe(":4000", r)
 }
 
-func SearchBuyers(w http.ResponseWriter, r *http.Request){
+func sync(date string){
+	dgraphClient := newClient()
+
+	// drop all data before loading new data to dgraph
+	if err := dgraphClient.Alter(context.Background(), &api.Operation{DropOp: api.Operation_DATA}); err != nil {
+		log.Fatal(err)
+	}
+
+	if len(date) == 0 {
+		date = time.Now().Format("2006-01-02")
+	}
+
+	c := make(chan itemData)
+	defer close(c)
+	go getData(AWS_ENDPOINT + "products?date", date, "products", c)
+	go getData(AWS_ENDPOINT + "transactions?date", date,"transactions", c)
+	go getData(AWS_ENDPOINT + "buyers?date", date,"buyers", c)
+	
+	var prodData, buyers, transData string
+
+	result := make([]itemData, 3)
+
+	for i,_ := range result{
+		result[i] = <-c
+		if result[i].item == "products"{
+			prodData = result[i].data
+		} else if result[i].item == "transactions"{
+			transData = result[i].data
+		} else if result[i].item == "buyers"{
+			buyers = result[i].data
+		}
+	}
+
+	/*
+	* process buyers
+	*/
+	var awsBuyers []struct{
+		Id string `json:"id"`
+		Name string `json:"name"`
+		Age int `json:"age"`
+	}
+
+	var dgBuyers []Buyer
+
+	if err := json.Unmarshal([]byte(buyers), &awsBuyers); err != nil { log.Fatal(err) }
+	
+	processBuyers := func() {
+		for _, v := range awsBuyers {
+			dgBuyers = append(
+				dgBuyers, 
+				Buyer{
+					Uid: `_:`+ v.Id, 
+					Id: v.Id, 
+					Name: v.Name, 
+					Age: v.Age, 
+					DType: []string{"Buyer"}, 
+				},
+			)
+		}
+	}
+
+	/*
+	* process products
+	*/
+	var prodList []Product
+	pLine := strings.Split(string(prodData),"\n")
+
+	processProducts := func(){
+		for _, inl := range pLine {
+			inl2 := strings.Split(inl,`'`)
+
+			if len(inl2) == 3 {
+				prodList = append(
+					prodList, 
+					Product{
+						Uid: `_:`+inl2[0], 
+						Id: inl2[0], 
+						Name: inl2[1], 
+						Price: inl2[2], 
+						DType: []string{"Product"}, 
+					},
+				)
+			} else if len(inl2) == 4 {
+				prodList = append(
+					prodList, 
+					Product{
+						Uid: `_:`+inl2[0], 
+						Id: inl2[0], 
+						Name: inl2[1]+inl2[2], 
+						Price: inl2[3], 
+						DType: []string{"Product"}, 
+					},
+				)
+			}
+		}
+	}
+
+	go processBuyers()
+	go processProducts()
+
+	/*
+	* process transactions
+	*/
+	var pTrans []Transaction
+	tLine := strings.Split(string(transData),"#")
+
+	for i, inl := range tLine {
+		if i == 0 {continue}
+
+		newL := strings.Split(inl,"\x00")
+		var dgbuyer Buyer
+		var dgprodList []Product
+		transProdIds := strings.Split(strings.Replace(strings.Replace(newL[4],"(","",1),")","",1), ",")
+
+		// get buyer
+		for _,v := range dgBuyers{
+			if v.Id == newL[1] {dgbuyer = v}
+		}
+
+		// get products
+		for _,v := range transProdIds {
+			for _,v1 := range prodList {
+				if v1.Id == v {
+					dgprodList = append(dgprodList, v1)
+				}
+			}
+		}
+
+		pTrans = append(pTrans, Transaction{
+			Uid: `_:`+newL[0],
+			Id: newL[0], 
+			Buyer: dgbuyer, 
+			Ip: newL[2], 
+			Device: newL[3],
+			Products: dgprodList,
+			DType: []string{"Transaction"} })
+	}
+
+	jsonData,err := json.Marshal(pTrans)
+	if err != nil { log.Fatal(err) }
+
+	mu := &api.Mutation{ CommitNow: true, SetJson: jsonData}
+
+	_, err = dgraphClient.NewTxn().Mutate(context.Background(), mu)
+	if err != nil { log.Fatal(err) }
+}
+
+func searchBuyers(w http.ResponseWriter, r *http.Request){
 	dgraphClient := newClient()
 
 	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYERS)
 	if err != nil { log.Fatal(err) }
 
 	w.Write(resp.GetJson())
+}
+
+func getBuyer(w http.ResponseWriter, r *http.Request){
+	
 }
 
 const SCHEMA = `
@@ -402,8 +398,8 @@ const QUERY_BUYER_INFO = `{
 	}
   }`
 
-func getData(url string, currentTime string, item string, c chan itemData) { 
-	querystr := fmt.Sprintf("%s=%s", url, currentTime)
+func getData(url string, date string, item string, c chan itemData) { 
+	querystr := fmt.Sprintf("%s=%s", url, date)
 	resp, err := http.Get(querystr)		
 	if err != nil { log.Fatal(err) }		
 	defer resp.Body.Close()		
