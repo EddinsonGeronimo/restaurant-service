@@ -78,15 +78,24 @@ const QUERY_BUYERS = `{ q (func: type(Buyer)) @filter(gt(count(~buyer),0)) { id 
 
 const AWS_ENDPOINT = `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
 
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
+const QUERY_BUYER_INFO = `{ 
+	q (func: type(Buyer)) {
+		id 
+		name 
+		age 
+		transactions: ~buyer { 
+			id 
+			ip
+			device 
+			products { name price } 
+		  } 
+	  }
+	qProducts (func: type(Product)){
+	  id 
+	  name
+	  ntrans: count(~products)
 	}
-
-	return false
-}
+  }`
 
 func getData(url string, currentTime string, item string, c chan itemData) { 
 	querystr := fmt.Sprintf("%s=%s", url, currentTime)
@@ -296,7 +305,6 @@ func main() {
 		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYERS)
 		if err != nil { log.Fatal(err) }
 
-		// if 'data' is empty than 'data' is null
 		w.Write(resp.GetJson())
 	})
 	
@@ -305,34 +313,9 @@ func main() {
 		
 		buyerId := r.URL.Query().Get("id")
 
-		/*
-		* connection to dgraph
-		*/
-		conn, err := grpc.Dial("localhost:9080", grpc.WithInsecure())
-		if err != nil { log.Fatal(err) }		
-		defer conn.Close()		
-		dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+		dgraphClient := newClient()
 
-		const query = `{ 
-			q (func: type(Buyer)) {
-				id 
-				name 
-				age 
-				transactions: ~buyer { 
-					id 
-					ip
-					device 
-					products { name price } 
-				  } 
-			  }
-			qProducts (func: type(Product)){
-			  id 
-			  name
-			  ntrans: count(~products)
-			}
-		  }`
-
-		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query)
+		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYER_INFO)
 		if err != nil { log.Fatal(err) }
 
 		// store all buyers and their transactions
@@ -405,11 +388,16 @@ func main() {
 		*/
 		var hasSameIpWithNoRep []Buyer
 		list := []string{}
+		var boolVar bool
 
 		for _,v := range hasSameIp{
-			if contains(list, v.Id) {
-				continue
+			boolVar = false
+			for _, v1 := range list {
+				if v1 == v.Id {
+					boolVar = true
+				}
 			}
+			if boolVar { continue }
 			list = append(list, v.Id)
 			hasSameIpWithNoRep = append(hasSameIpWithNoRep, v)
 		}
@@ -446,7 +434,6 @@ func main() {
 
 		if err != nil { log.Fatal(err) }
 
-		//if 'data' is empty than 'data' is null
 		w.Write(data)
 	})
 
