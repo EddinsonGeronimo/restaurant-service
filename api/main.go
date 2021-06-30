@@ -43,7 +43,6 @@ func main() {
 		}	
 	}
 
-	// endpoint: load data to dgraph
 	r.Get("/sync", func(w http.ResponseWriter, r *http.Request){
 		date := r.URL.Query().Get("date")
 		
@@ -52,135 +51,10 @@ func main() {
 	
 	r.Route("/buyers", func(r chi.Router) {
 		r.Get("/search", searchBuyers)
-	})
 
-	// endpoint: return transactions of buyerId and buyers with same ip , also recommended products 
-	r.Get("/buyer",func(w http.ResponseWriter, r *http.Request){
-		
-		buyerId := r.URL.Query().Get("id")
-
-		dgraphClient := newClient()
-
-		resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYER_INFO)
-		if err != nil { log.Fatal(err) }
-
-		// store all buyers and their transactions
-		var decode struct { 
-			Q []struct { 
-				Id string `json:"id"`
-				Name string `json:"name"`
-				Age string `json:"age"`
-				Transactions []struct{ 
-					Id string `json:"id"`
-					Ip string `json:"ip"`
-					Device string `json:"device"`
-					Products []struct{
-						Name string `json:"name"`
-						Price float64 `json:"price"`
-					}
-				}
-			}
-			Qproducts []struct {
-				Id string `json:"id"`
-				Name string `json:"name"`
-				Ntrans int `json:"ntrans"`
-			}
-		}
-
-		if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
-			log.Fatal(err)
-		}
-
-		// store all transactions of buyerId
-		type BuyerTrans []struct{
-			Id string `json:"id"`
-			Ip string `json:"ip"`
-			Device string `json:"device"`
-			Products []struct{
-				Name string `json:"name"`
-				Price float64 `json:"price"`
-			}
-		}
-
-		var buyerTrans BuyerTrans
-
-		for _,v := range decode.Q {
-			if buyerId == v.Id {
-				buyerTrans = append(buyerTrans, v.Transactions...)
-			}
-		}
-
-		type Buyer struct {
-			Id string `json:"id"`
-			Name string `json:"name"`
-			Age string `json:"age"`
-		}
-
-		// store all buyers with same ips as buyerId
-		var hasSameIp []Buyer
-
-		for _,v := range buyerTrans {
-			for _,v1 := range decode.Q {
-				for _,v3 := range v1.Transactions{
-					if v.Ip == v3.Ip {
-						hasSameIp = append(hasSameIp, Buyer{Id: v1.Id, Name: v1.Name, Age: v1.Age})
-					}
-				}
-			}
-		}
-
-		/*
-		* remove duplicate from 'hasSameIp'
-		*/
-		var hasSameIpWithNoRep []Buyer
-		list := []string{}
-		var boolVar bool
-
-		for _,v := range hasSameIp{
-			boolVar = false
-			for _, v1 := range list {
-				if v1 == v.Id {
-					boolVar = true
-				}
-			}
-			if boolVar { continue }
-			list = append(list, v.Id)
-			hasSameIpWithNoRep = append(hasSameIpWithNoRep, v)
-		}
-
-		// store transactions and buyers with same ip as buyerId
-		type AllData struct {
-			BuyerTransactions []BuyerTrans `json:"buyertransactions"`
-			HasSameIp []Buyer `json:"hassameip"`
-			Rproducts []struct { 
-				Id string `json:"id"` 
-				Name string `json:"name"`
-			}
-		}
-
-		var allData AllData
-
-		allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
-		allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
-
-		// filter products linked to more than 400 transactions  
-		for _,v := range decode.Qproducts {
-			if v.Ntrans > 400 {
-				allData.Rproducts = append(allData.Rproducts, 
-					struct{ 
-						Id string `json:"id"` 
-						Name string `json:"name"`}{
-							Id: v.Id, 
-							Name: v.Name,
-						})
-			}
-		}
-
-		data, err := json.Marshal(&allData)
-
-		if err != nil { log.Fatal(err) }
-
-		w.Write(data)
+		r.Route("/{buyerId}", func(r chi.Router) {
+			r.Get("/", getBuyer)
+		})
 	})
 
 	http.ListenAndServe(":4000", r)
@@ -343,7 +217,132 @@ func searchBuyers(w http.ResponseWriter, r *http.Request){
 }
 
 func getBuyer(w http.ResponseWriter, r *http.Request){
-	
+	buyerId := chi.URLParam(r, "buyerId")
+
+	fmt.Println(buyerId)
+
+	dgraphClient := newClient()
+
+	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYER_INFO)
+	if err != nil { log.Fatal(err) }
+
+	// store all buyers and their transactions
+	var decode struct { 
+		Q []struct { 
+			Id string `json:"id"`
+			Name string `json:"name"`
+			Age string `json:"age"`
+			Transactions []struct{ 
+				Id string `json:"id"`
+				Ip string `json:"ip"`
+				Device string `json:"device"`
+				Products []struct{
+					Name string `json:"name"`
+					Price float64 `json:"price"`
+				}
+			}
+		}
+		Qproducts []struct {
+			Id string `json:"id"`
+			Name string `json:"name"`
+			Ntrans int `json:"ntrans"`
+		}
+	}
+
+	if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
+		log.Fatal(err)
+	}
+
+	// store all transactions of buyerId
+	type BuyerTrans []struct{
+		Id string `json:"id"`
+		Ip string `json:"ip"`
+		Device string `json:"device"`
+		Products []struct{
+			Name string `json:"name"`
+			Price float64 `json:"price"`
+		}
+	}
+
+	var buyerTrans BuyerTrans
+
+	for _,v := range decode.Q {
+		if buyerId == v.Id {
+			buyerTrans = append(buyerTrans, v.Transactions...)
+		}
+	}
+
+	type Buyer struct {
+		Id string `json:"id"`
+		Name string `json:"name"`
+		Age string `json:"age"`
+	}
+
+	// store all buyers with same ips as buyerId
+	var hasSameIp []Buyer
+
+	for _,v := range buyerTrans {
+		for _,v1 := range decode.Q {
+			for _,v3 := range v1.Transactions{
+				if v.Ip == v3.Ip {
+					hasSameIp = append(hasSameIp, Buyer{Id: v1.Id, Name: v1.Name, Age: v1.Age})
+				}
+			}
+		}
+	}
+
+	/*
+	* remove duplicate from 'hasSameIp'
+	*/
+	var hasSameIpWithNoRep []Buyer
+	list := []string{}
+	var boolVar bool
+
+	for _,v := range hasSameIp{
+		boolVar = false
+		for _, v1 := range list {
+			if v1 == v.Id {
+				boolVar = true
+			}
+		}
+		if boolVar { continue }
+		list = append(list, v.Id)
+		hasSameIpWithNoRep = append(hasSameIpWithNoRep, v)
+	}
+
+	// store transactions and buyers with same ip as buyerId
+	type AllData struct {
+		BuyerTransactions []BuyerTrans `json:"buyertransactions"`
+		HasSameIp []Buyer `json:"hassameip"`
+		Rproducts []struct { 
+			Id string `json:"id"` 
+			Name string `json:"name"`
+		}
+	}
+
+	var allData AllData
+
+	allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
+	allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
+
+	// filter products linked to more than 400 transactions  
+	for _,v := range decode.Qproducts {
+		if v.Ntrans > 400 {
+			allData.Rproducts = append(allData.Rproducts, 
+				struct{ 
+					Id string `json:"id"` 
+					Name string `json:"name"`}{
+						Id: v.Id, 
+						Name: v.Name,
+					})
+		}
+	}
+
+	data, err := json.Marshal(&allData)
+
+	if err != nil { log.Fatal(err) }
+
+	w.Write(data)
 }
 
 const SCHEMA = `
