@@ -53,7 +53,7 @@
                 </template>
                 <h3>Products</h3>
                 <v-list-item
-                    v-for="product in item.Products"
+                    v-for="product in item.products"
                     :key="product.name"
                     link
                     two-line
@@ -129,15 +129,15 @@ export default {
                 const response = await this.axios.get(`http://localhost:4000/buyers/${this.buyerid}`, 
                 {headers: {'Access-Control-Allow-Origin': `http://localhost:9999`}})
                 
-                this.transactions = response.data.buyertransactions[0]
+                this.transactions = response.data.buyerandtrans[0].transactions
                 this.otherBuyers = response.data.hassameip
-                this.recommendedProducts = response.data.Rproducts
+                this.recommendedProducts = response.data.rproducts
 
                 this.progress = true
             }
             catch(err){
                 if (err.response) {
-                    alert(`Server Error` )
+                    alert(`Server Error`)
                 } else if (err.request) {
                     alert(`Network Error`)
                 } else {
