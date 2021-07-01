@@ -57,8 +57,6 @@ func main() {
 }
 
 func sync(w http.ResponseWriter, r *http.Request){
-	date := r.URL.Query().Get("date")
-
 	dgraphClient := newClient()
 
 	// drop all data before loading new data to dgraph
@@ -67,15 +65,17 @@ func sync(w http.ResponseWriter, r *http.Request){
 		http.Error(w,http.StatusText(http.StatusInternalServerError),500)
 	}
 
+	c := make(chan itemData)
+	date := r.URL.Query().Get("date")
 	if len(date) == 0 {
 		date = time.Now().Format("2006-01-02")
 	}
-
-	c := make(chan itemData)
+	aws_endpoint := `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
+	
 	defer close(c)
-	go getData(AWS_ENDPOINT + "products?date", date, "products", c)
-	go getData(AWS_ENDPOINT + "transactions?date", date,"transactions", c)
-	go getData(AWS_ENDPOINT + "buyers?date", date,"buyers", c)
+	go getData(aws_endpoint + "products?date", date, "products", c)
+	go getData(aws_endpoint + "transactions?date", date,"transactions", c)
+	go getData(aws_endpoint + "buyers?date", date,"buyers", c)
 	
 	var prodData, buyers, transData string
 
@@ -212,7 +212,9 @@ func sync(w http.ResponseWriter, r *http.Request){
 func searchBuyers(w http.ResponseWriter, r *http.Request){
 	dgraphClient := newClient()
 
-	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYERS)
+	query_buyers := `{ q (func: type(Buyer)) @filter(gt(count(~buyer),0)) { id name age } }`
+
+	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query_buyers)
 	if err != nil { log.Fatal(err) }
 
 	w.Write(resp.GetJson())
@@ -223,113 +225,39 @@ func getBuyer(w http.ResponseWriter, r *http.Request){
 
 	dgraphClient := newClient()
 
-	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), QUERY_BUYER_INFO)
+	query_buyer_info := `{ 
+		buyerandtrans(func: type(Buyer)) @filter(eq(id,"`+buyerId+`")){
+			id 
+			buyername as name 
+			age 
+			transactions: ~buyer { 
+				id 
+				ipaddr as ip
+				device 
+				products { name price } 
+			} 
+		}
+		var(func: type(Transaction)) @filter(eq(ip,val(ipaddr))){
+			buyer_uid as buyer @filter(not(eq(name,val(buyername)))){
+				name				
+			}
+		}
+		hassameip(func: uid(buyer_uid)){
+			name
+		}
+		product_uid as var(func: type(Product)){
+			ntrans as count(~products)
+		}
+		rproducts(func: uid(product_uid), orderdesc: val(ntrans), first: 5) {
+			id
+			name
+		}
+	}`
+
+	resp, err := dgraphClient.NewReadOnlyTxn().Query(context.Background(), query_buyer_info)
 	if err != nil { log.Fatal(err) }
 
-	// store all buyers and their transactions
-	var decode struct { 
-		Q []struct { 
-			Id string `json:"id"`
-			Name string `json:"name"`
-			Age string `json:"age"`
-			Transactions []struct{ 
-				Id string `json:"id"`
-				Ip string `json:"ip"`
-				Device string `json:"device"`
-				Products []struct{
-					Name string `json:"name"`
-					Price float64 `json:"price"`
-				}
-			}
-		}
-		Qproducts []struct {
-			Id string `json:"id"`
-			Name string `json:"name"`
-		}
-	}
-
-	if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
-		log.Fatal(err)
-	}
-
-	// store all transactions of buyerId
-	type BuyerTrans []struct{
-		Id string `json:"id"`
-		Ip string `json:"ip"`
-		Device string `json:"device"`
-		Products []struct{
-			Name string `json:"name"`
-			Price float64 `json:"price"`
-		}
-	}
-
-	var buyerTrans BuyerTrans
-
-	for _,v := range decode.Q {
-		if buyerId == v.Id {
-			buyerTrans = append(buyerTrans, v.Transactions...)
-		}
-	}
-
-	type Buyer struct {
-		Id string `json:"id"`
-		Name string `json:"name"`
-		Age string `json:"age"`
-	}
-
-	// store all buyers with same ip as buyerId
-	var hasSameIp []Buyer
-
-	for _,v := range buyerTrans {
-		for _,v1 := range decode.Q {
-			for _,v3 := range v1.Transactions{
-				if v.Ip == v3.Ip {
-					hasSameIp = append(hasSameIp, Buyer{Id: v1.Id, Name: v1.Name, Age: v1.Age})
-				}
-			}
-		}
-	}
-
-	/*
-	* remove duplicate from 'hasSameIp'
-	*/
-	var hasSameIpWithNoRep []Buyer
-	list := []string{}
-	var boolVar bool
-
-	for _,v := range hasSameIp{
-		boolVar = false
-		for _, v1 := range list {
-			if v1 == v.Id {
-				boolVar = true
-			}
-		}
-		if boolVar { continue }
-		list = append(list, v.Id)
-		hasSameIpWithNoRep = append(hasSameIpWithNoRep, v)
-	}
-
-	// store transactions and buyers with same ip as buyerId
-	type AllData struct {
-		BuyerTransactions []BuyerTrans `json:"buyertransactions"`
-		HasSameIp []Buyer `json:"hassameip"`
-		Rproducts []struct { 
-			Id string `json:"id"` 
-			Name string `json:"name"`
-		}
-	}
-
-	var allData AllData
-
-	allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
-	allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
-	allData.Rproducts = append(allData.Rproducts, decode.Qproducts...)
-
-	data, err := json.Marshal(&allData)
-
-	if err != nil { log.Fatal(err) }
-
-	w.Write(data)
+	w.Write(resp.GetJson())
 }
 
 func getData(url string, date string, item string, c chan itemData) { 
@@ -382,33 +310,6 @@ const SCHEMA = `
 		device
 		products
 	}`
-
-const QUERY_BUYERS = `{ q (func: type(Buyer)) @filter(gt(count(~buyer),0)) { id name age } }`
-
-const AWS_ENDPOINT = `https://kqxty15mpg.execute-api.us-east-1.amazonaws.com/`
-
-const QUERY_BUYER_INFO = `{ 
-	q (func: type(Buyer)) {
-		id 
-		name 
-		age 
-		transactions: ~buyer { 
-			id 
-			ip
-			device 
-			products { name price } 
-		} 
-	}
-	p as var(func: type(Product)){
-		id 
-		name
-		ntrans as count(~products)
-	}
-	qProducts(func: uid(p), orderdesc: val(ntrans), first: 5) {
-		id
-		name
-	}
-  }`
 
 type Buyer struct {
 	Uid string `json:"uid,omitempty"`
