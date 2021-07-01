@@ -245,7 +245,6 @@ func getBuyer(w http.ResponseWriter, r *http.Request){
 		Qproducts []struct {
 			Id string `json:"id"`
 			Name string `json:"name"`
-			Ntrans int `json:"ntrans"`
 		}
 	}
 
@@ -324,19 +323,7 @@ func getBuyer(w http.ResponseWriter, r *http.Request){
 
 	allData.BuyerTransactions = append(allData.BuyerTransactions, buyerTrans)
 	allData.HasSameIp = append(allData.HasSameIp, hasSameIpWithNoRep...)
-
-	// filter products linked to more than 400 transactions  
-	for _,v := range decode.Qproducts {
-		if v.Ntrans > 400 {
-			allData.Rproducts = append(allData.Rproducts, 
-				struct{ 
-					Id string `json:"id"` 
-					Name string `json:"name"`}{
-						Id: v.Id, 
-						Name: v.Name,
-					})
-		}
-	}
+	allData.Rproducts = append(allData.Rproducts, decode.Qproducts...)
 
 	data, err := json.Marshal(&allData)
 
@@ -410,12 +397,16 @@ const QUERY_BUYER_INFO = `{
 			ip
 			device 
 			products { name price } 
-		  } 
-	  }
-	qProducts (func: type(Product)){
-	  id 
-	  name
-	  ntrans: count(~products)
+		} 
+	}
+	p as var(func: type(Product)){
+		id 
+		name
+		ntrans as count(~products)
+	}
+	qProducts(func: uid(p), orderdesc: val(ntrans), first: 5) {
+		id
+		name
 	}
   }`
 
